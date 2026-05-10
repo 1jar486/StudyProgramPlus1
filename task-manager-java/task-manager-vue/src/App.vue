@@ -1,5 +1,10 @@
 <template>
   <div class="nebula-app-container">
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
+    <canvas id="globalParticleCanvas" ref="globalCanvasRef" class="global-particles"></canvas>
 
     <main class="nebula-main-viewport custom-scrollbar">
       <router-view />
@@ -35,8 +40,7 @@
         </div>
       </aside>
     </transition>
-
-  </div>
+    </div>
 
   <div v-if="menuState > 0" class="nebula-overlay" @click="menuState = 0"></div>
 
@@ -124,6 +128,132 @@ import request from './utils/request';
 
 const route = useRoute();
 const router = useRouter();
+
+//【新增：全局粒子系统核心逻辑 开始】 ==================
+const globalCanvasRef = ref(null);
+let particles = [];
+const PARTICLE_COUNT = 75;
+const CONNECTION_DIST = 130;
+let animationId;
+let mouseX = -1000;
+let mouseY = -1000;
+let isMouseOnCanvas = false;
+let canvas, ctx;
+
+class Particle {
+  constructor() {
+    this.reset();
+    this.x = Math.random() * (canvas?.width || window.innerWidth);
+    this.y = Math.random() * (canvas?.height || window.innerHeight);
+  }
+  reset() {
+    this.x = Math.random() * (canvas?.width || window.innerWidth);
+    this.y = Math.random() * (canvas?.height || window.innerHeight);
+    this.vx = (Math.random() - 0.5) * 0.5;
+    this.vy = (Math.random() - 0.5) * 0.5;
+    this.radius = Math.random() * 2 + 1;
+    this.opacity = Math.random() * 0.5 + 0.25;
+    this.pulseSpeed = Math.random() * 0.02 + 0.008;
+    this.pulseOffset = Math.random() * Math.PI * 2;
+  }
+  update(time) {
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x < -20) this.x = (canvas?.width || window.innerWidth) + 20;
+    if (this.x > (canvas?.width || window.innerWidth) + 20) this.x = -20;
+    if (this.y < -20) this.y = (canvas?.height || window.innerHeight) + 20;
+    if (this.y > (canvas?.height || window.innerHeight) + 20) this.y = -20;
+
+    // 鼠标排斥/吸引逻辑
+    if (isMouseOnCanvas) {
+      const dx = mouseX - this.x;
+      const dy = mouseY - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 200 && dist > 5) {
+        const force = 0.015 / (dist * 0.05);
+        this.vx += dx * force * 0.3;
+        this.vy += dy * force * 0.3;
+      }
+    }
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    const maxSpeed = 1.2;
+    if (speed > maxSpeed) {
+      this.vx = (this.vx / speed) * maxSpeed;
+      this.vy = (this.vy / speed) * maxSpeed;
+    }
+    this.vx += (Math.random() - 0.5) * 0.015;
+    this.vy += (Math.random() - 0.5) * 0.015;
+    this.vx *= 0.9995;
+    this.vy *= 0.9995;
+    const pulse = Math.sin(time * this.pulseSpeed + this.pulseOffset) * 0.15;
+    this.currentOpacity = Math.max(0.1, Math.min(0.8, this.opacity + pulse));
+  }
+  draw(ctx) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(180,170,220,${this.currentOpacity})`;
+    ctx.fill();
+    if (this.radius > 1.5) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(160,150,210,${this.currentOpacity * 0.25})`;
+      ctx.fill();
+    }
+  }
+}
+
+function initParticles() {
+  particles = [];
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particles.push(new Particle());
+  }
+}
+
+function drawConnections() {
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < CONNECTION_DIST) {
+        const alpha = (1 - dist / CONNECTION_DIST) * 0.35;
+        const gradient = ctx.createLinearGradient(particles[i].x, particles[i].y, particles[j].x, particles[j].y);
+        gradient.addColorStop(0, `rgba(150,140,200,${alpha * particles[i].currentOpacity * 2})`);
+        gradient.addColorStop(1, `rgba(150,140,200,${alpha * particles[j].currentOpacity * 2})`);
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function animate(timestamp) {
+  if (!ctx || !canvas) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const p of particles) {
+    p.update(timestamp);
+    p.draw(ctx);
+  }
+  drawConnections();
+  animationId = requestAnimationFrame(animate);
+}
+
+function resizeCanvas() {
+  if (!canvas) return;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+const onResize = () => { resizeCanvas(); initParticles(); };
+const onMouseMove = (e) => { mouseX = e.clientX; mouseY = e.clientY; isMouseOnCanvas = true; };
+const onMouseLeave = () => { isMouseOnCanvas = false; };
+const onTouchMove = (e) => { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; isMouseOnCanvas = true; };
+const onTouchEnd = () => { isMouseOnCanvas = false; };
+// ================== 【新增：全局粒子系统核心逻辑 结束】 ==================
 
 // =======================
 // 1. 状态与配置管理
@@ -325,14 +455,42 @@ const sendMessage = async () => {
 
 let autoPlayTimer;
 onMounted(() => {
+  // 原有的桌宠逻辑（保留不动）
   autoPlayTimer = setInterval(() => { playAnimation(); }, 60000);
   window.addEventListener('resize', () => {
     const maxX = window.innerWidth - (petRef.value?.clientWidth || 100);
     const maxY = window.innerHeight - (petRef.value?.clientHeight || 100);
     petX.value = Math.min(petX.value, maxX); petY.value = Math.min(petY.value, maxY);
   });
+
+  // ================== 【新增：启动粒子系统】 ==================
+  canvas = globalCanvasRef.value;
+  ctx = canvas?.getContext('2d');
+  if (canvas && ctx) {
+    resizeCanvas();
+    initParticles();
+    animationId = requestAnimationFrame(animate);
+    window.addEventListener('resize', onResize);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseleave', onMouseLeave);
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onTouchEnd);
+  }
 });
-onUnmounted(() => { clearInterval(autoPlayTimer); });
+onUnmounted(() => {
+  // 原有的清理桌宠定时器（保留不动）
+  clearInterval(autoPlayTimer);
+
+  // ================== 【新增：清理粒子系统事件，防止内存泄漏】 ==================
+  if (animationId) cancelAnimationFrame(animationId);
+  window.removeEventListener('resize', onResize);
+  document.removeEventListener('mousemove', onMouseMove);
+  document.removeEventListener('mouseleave', onMouseLeave);
+  document.removeEventListener('touchmove', onTouchMove);
+  document.removeEventListener('touchend', onTouchEnd);
+});
+
+
 </script>
 
 <style scoped>
@@ -408,4 +566,14 @@ onUnmounted(() => { clearInterval(autoPlayTimer); });
 .btn-nebula-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .modal-fade-enter-active, .modal-fade-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; transform: scale(0.95) translateY(20px); }
+
+/* ================== 【新增：全局星空光晕与画布样式】 ================== */
+#globalParticleCanvas {position: absolute;top: 0;left: 0;width: 100%;height: 100%;z-index: 0;pointer-events: none; /* 关键：确保鼠标点击穿透给后面的内容 */}
+.ambient-glow {position: absolute;border-radius: 50%;filter: blur(120px);pointer-events: none;z-index: 0;opacity: 0.5;animation: ambientFloat 12s ease-in-out infinite;}
+.ambient-glow.glow-1 {width: 500px; height: 500px;background: radial-gradient(circle, rgba(124, 111, 247, 0.35) 0%, transparent 70%);top: -15%; left: -10%;animation-duration: 14s;}
+.ambient-glow.glow-2 {width: 400px; height: 400px;background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, transparent 70%);bottom: -12%; right: -8%;animation-delay: -5s; animation-duration: 16s;}
+.ambient-glow.glow-3 {width: 350px; height: 350px;background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);top: 50%; left: 55%;animation-delay: -9s; animation-duration: 18s;}
+@keyframes ambientFloat { 0%, 100% { transform: translate(0, 0) scale(1); } 20% { transform: translate(60px, -40px) scale(1.15); } 40% { transform: translate(-30px, 30px) scale(0.9); } 60% { transform: translate(-50px, -25px) scale(1.1); } 80% { transform: translate(35px, 45px) scale(0.85); } }
+/* 确保你的 main 区域在特效层上方 */
+.nebula-main-viewport {z-index: 1; /* 重要：把实际内容提上来 */position: relative;}
 </style>

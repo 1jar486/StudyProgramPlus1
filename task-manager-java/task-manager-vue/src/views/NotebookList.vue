@@ -1,85 +1,119 @@
 <template>
   <div class="glass-app-container">
-    <header class="vibe-header">
+    <header class="nebula-header">
       <div class="header-left">
-        <h1><span class="material-icons title-icon">auto_awesome</span> 我的 AI 笔记本</h1>
+        <h1 class="nebula-title-main">
+          <span class="material-icons tech-icon">biotech</span>
+          思绪空间中枢
+        </h1>
+        <p class="nebula-subtitle">探索与构建你的数字第二大脑</p >
       </div>
       <div class="header-right">
-        <button class="btn-pill btn-outline" @click="router.push('/tasks')">返回看板</button>
+        <button class="btn-nebula-outline" @click="router.push('/tasks')">
+          <span class="material-icons">dashboard</span>
+          返回任务控制台
+        </button>
       </div>
     </header>
 
-    <!-- 顶部分类 Tabs (营造 NotebookLM 的 Vibe) -->
-    <div class="vibe-tabs">
-      <div class="tab active">最近</div>
-      <div class="tab">已分享</div>
-      <div class="tab">标题</div>
+    <div class="nebula-tabs-container">
+      <div class="nebula-tab active">
+        <span class="tab-dot"></span>
+        最近跃迁
+      </div>
+      <div class="nebula-tab">全部档案</div>
+      <div class="nebula-tab">星标标记</div>
+      <div class="tabs-line"></div>
     </div>
 
-    <!-- 笔记本卡片列表 -->
     <div class="notebook-grid">
       <div
-          class="notebook-card"
+          class="nebula-card"
           v-for="(nb, index) in notebooks"
           :key="nb.id"
-          :style="{ background: cardColors[index % cardColors.length] }"
           @click="goToNotebook(nb.id)"
+          :style="{ '--entry-delay': (index * 0.1) + 's' }"
       >
-        <div class="card-left">
-          <span class="emoji-icon">{{ emojis[index % emojis.length] }}</span>
+        <div class="card-glow-effect"></div>
+        <div class="card-content">
+          <div class="card-visual">
+            <div class="icon-orb">
+              <span class="emoji-icon">{{ emojis[index % emojis.length] }}</span>
+            </div>
+          </div>
           <div class="nb-info">
             <h3>{{ nb.name }}</h3>
-            <p>创建于: {{ formatDate(nb.createdTime) }}</p >
+            <div class="nb-meta">
+              <span class="material-icons">schedule</span>
+              {{ formatDate(nb.createdTime) }}
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="btn-icon-danger" @click.stop="triggerDeleteNotebook(nb.id, nb.name)" title="抹除空间">
+              <span class="material-icons">auto_delete</span>
+            </button>
           </div>
         </div>
-        <div class="card-right">
-          <!-- 阻止冒泡，避免点击删除时触发进入笔记本 -->
-          <button class="btn-action" @click.stop="triggerDeleteNotebook(nb.id, nb.name)" title="删除笔记本">
-            <span class="material-icons">delete_outline</span>
-          </button>
-        </div>
+      </div>
+
+      <div v-if="notebooks.length === 0" class="nebula-empty-state">
+        <div class="empty-orb"></div>
+        <p>尚未观测到思绪空间，点击下方按钮开启初次跃迁</p >
       </div>
     </div>
 
-    <!-- 底部固定的新建按钮 -->
-    <div class="bottom-action-area">
-      <button class="btn-huge-create" @click="showCreateModal = true">
-        <span class="material-icons">add</span> 新建笔记本
+    <div class="nebula-action-float">
+      <button class="btn-nebula-primary btn-huge" @click="showCreateModal = true">
+        <span class="material-icons">add_circle</span>
+        构建新思绪空间
       </button>
     </div>
 
-    <!-- 新建笔记本弹窗 -->
     <transition name="modal-fade">
-      <div class="vibe-modal-overlay" v-if="showCreateModal" @click.self="showCreateModal = false">
-        <div class="vibe-modal-content">
-          <h2>创建新笔记本</h2>
-          <input
-              v-model="newNotebookName"
-              type="text"
-              class="vibe-input"
-              placeholder="例如：高等数学期末复习、AI 论文阅读..."
-              @keyup.enter="createNotebook"
-              autofocus
-          >
+      <div class="nebula-modal-overlay" v-if="showCreateModal" @click.self="showCreateModal = false">
+        <div class="nebula-modal-content glass-panel">
+          <div class="modal-header">
+            <h2><span class="material-icons">create_new_folder</span> 开启新课题</h2>
+            <button class="btn-close-circle" @click="showCreateModal = false">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="nebula-input-wrapper">
+              <input
+                  v-model="newNotebookName"
+                  type="text"
+                  class="nebula-input"
+                  placeholder="输入空间全称 (如: 量子力学复习)..."
+                  @keyup.enter="createNotebook"
+                  autofocus
+              >
+              <div class="focus-line"></div>
+            </div>
+          </div>
           <div class="modal-footer">
-            <button class="btn-pill btn-outline" @click="showCreateModal = false">取消</button>
-            <button class="btn-pill btn-ai" @click="createNotebook" :disabled="!newNotebookName.trim()">创建</button>
+            <button class="btn-nebula-outline" @click="showCreateModal = false">放弃</button>
+            <button class="btn-nebula-primary" @click="createNotebook" :disabled="!newNotebookName.trim()">
+              确认跃迁
+            </button>
           </div>
         </div>
       </div>
     </transition>
-    <!-- 自定义删除确认弹窗 -->
+
     <transition name="modal-fade">
-      <div class="vibe-modal-overlay" v-if="deleteConfirm.show" @click.self="deleteConfirm.show = false">
-        <div class="vibe-modal-content confirm-modal">
-          <div class="modal-icon-warning">
-            <span class="material-icons">warning_amber</span>
+      <div class="nebula-modal-overlay" v-if="deleteConfirm.show" @click.self="deleteConfirm.show = false">
+        <div class="nebula-modal-content glass-panel danger-modal">
+          <div class="danger-icon-wrapper">
+            <span class="material-icons">report_problem</span>
           </div>
-          <h2>确定要删除该笔记本吗？</h2>
-          <p class="warning-text">你即将删除 <strong>{{ deleteConfirm.name }}</strong>。<br>这会彻底清空里面所有的文档和对话记录，此操作无法恢复！</p >
+          <h2>彻底抹除空间？</h2>
+          <p class="danger-desc">
+            此操作将永久销毁 <strong>{{ deleteConfirm.name }}</strong> 及其内部所有 AI 记忆。
+          </p >
           <div class="modal-footer">
-            <button class="btn-pill btn-outline" @click="deleteConfirm.show = false">取消</button>
-            <button class="btn-pill btn-danger" @click="executeDeleteNotebook">确定删除</button>
+            <button class="btn-nebula-outline" @click="deleteConfirm.show = false">中止</button>
+            <button class="btn-nebula-danger" @click="executeDeleteNotebook">确认抹除</button>
           </div>
         </div>
       </div>
@@ -96,35 +130,29 @@ const router = useRouter();
 const notebooks = ref([]);
 const showCreateModal = ref(false);
 const newNotebookName = ref('');
-// 新增确认弹窗的状态管理
 const deleteConfirm = ref({ show: false, id: null, name: '' });
-// 营造 NotebookLM 的缤纷马卡龙色系
-const cardColors = ['#E0F2FE', '#F5F3FF', '#F0FDF4', '#FEFCE8', '#FFE4E6'];
-const emojis = ['🚀', '☀️', '📖', '🧠', '💡'];
+
+const emojis = ['💠', '🪐', '🧬', '⚛️', '🛰️'];
 
 const fetchNotebooks = async () => {
   try {
     notebooks.value = await request.get('/api/notebooks');
   } catch (error) {
-    console.error("获取笔记本失败", error);
+    console.error("获取失败", error);
   }
 };
 
-// 1. 点击垃圾桶时，不再调用浏览器原生 confirm，而是呼出我们自己画的弹窗
 const triggerDeleteNotebook = (id, name) => {
   deleteConfirm.value = { show: true, id, name };
 };
 
-// 2. 用户在自定义弹窗里点击“确定删除”后，才真正执行删除
 const executeDeleteNotebook = async () => {
   try {
     await request.delete(`/api/notebooks/${deleteConfirm.value.id}`);
-    deleteConfirm.value.show = false; // 关闭弹窗
-    await fetchNotebooks(); // 刷新列表
-    // 如果你在这个文件里也配了 Toast，可以加上这句：
-    // showToast(`笔记本【${deleteConfirm.value.name}】已删除`, 'success');
+    deleteConfirm.value.show = false;
+    await fetchNotebooks();
   } catch (error) {
-    alert("删除失败"); // 建议后续也替换为 showToast
+    console.error("删除失败");
   }
 };
 
@@ -136,21 +164,18 @@ const createNotebook = async () => {
     showCreateModal.value = false;
     await fetchNotebooks();
   } catch (error) {
-    alert("创建失败，请检查后端");
+    console.error("创建失败");
   }
 };
 
-
-
 const goToNotebook = (id) => {
-  // 携带动态路由参数跳转到特定的工作区
   router.push(`/copilot/${id}`);
 };
 
 const formatDate = (dateString) => {
-  if (!dateString) return '刚刚';
+  if (!dateString) return '刚刚激活';
   const date = new Date(dateString);
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`;
 };
 
 onMounted(() => {
@@ -159,93 +184,221 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 延续薄荷绿背景 */
+/* 1. 基础布局 - 全透明承接底层星空 */
 .glass-app-container {
   min-height: 100vh;
-  padding: 40px 60px;
-  background: linear-gradient(135deg, #F0FDF4 0%, #F8FAFC 100%);
-  font-family: system-ui, -apple-system, sans-serif;
+  padding: 60px 80px;
+  background: transparent;
+  color: #e8e8f0;
+  font-family: 'Inter', system-ui, sans-serif;
   box-sizing: border-box;
 }
 
-.vibe-header {
-  display: flex; justify-content: space-between; align-items: center; max-width: 800px; margin: 0 auto 32px auto;
+/* 2. Header 样式 */
+.nebula-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  max-width: 1000px;
+  margin: 0 auto 40px;
 }
-.header-left h1 { display: flex; align-items: center; gap: 8px; font-size: 28px; color: #111827; margin: 0; }
-.title-icon { color: #34D399; font-size: 28px; }
+.nebula-title-main {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(124, 111, 247, 0.3);
+}
+.tech-icon { color: #7c6ff7; font-size: 32px; }
+.nebula-subtitle { color: #9898b4; font-size: 0.95rem; margin: 8px 0 0; }
 
-/* 按钮通用样式复用 */
-.btn-pill {
-  display: flex; align-items: center; gap: 6px; padding: 10px 22px; border-radius: 999px; font-weight: 600; cursor: pointer; border: none; transition: 0.3s;
+/* 3. Nebula Tabs 样式 */
+.nebula-tabs-container {
+  display: flex;
+  gap: 30px;
+  max-width: 1000px;
+  margin: 0 auto 32px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 12px;
+  position: relative;
 }
-.btn-outline { background: #ffffff; color: #374151; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-.btn-outline:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-.btn-ai { background: #34D399; color: white; }
-.btn-ai:hover { transform: translateY(-2px); background: #10B981; box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
+.nebula-tab {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b6b85;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nebula-tab.active { color: #a99df9; }
+.tab-dot { width: 6px; height: 6px; background: #7c6ff7; border-radius: 50%; box-shadow: 0 0 8px #7c6ff7; }
 
-/* Tabs 样式 */
-.vibe-tabs {
-  display: flex; gap: 16px; max-width: 800px; margin: 0 auto 24px auto;
-}
-.tab {
-  padding: 8px 16px; border-radius: 999px; font-size: 15px; font-weight: 600; color: #6B7280; cursor: pointer;
-}
-.tab.active { background: #E5E7EB; color: #111827; }
-
-/* 笔记本卡片网格 */
+/* 4. 核心组件：Nebula 玻璃态卡片 */
 .notebook-grid {
-  max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; padding-bottom: 100px;
+  max-width: 1000px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  padding-bottom: 120px;
 }
 
-.notebook-card {
-  display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-radius: 20px; cursor: pointer; transition: all 0.3s;
+.nebula-card {
+  position: relative;
+  background: rgba(18, 18, 36, 0.65);
+  backdrop-filter: blur(40px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 24px;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  animation: cardEntry 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--entry-delay);
 }
-.notebook-card:hover { transform: translateY(-2px); filter: brightness(0.95); }
 
-.card-left { display: flex; align-items: center; gap: 16px; }
-.emoji-icon { font-size: 32px; }
-.nb-info h3 { margin: 0 0 4px 0; font-size: 20px; color: #111827; }
-.nb-info p { margin: 0; font-size: 14px; color: #6B7280; }
-
-.card-right { display: flex; gap: 8px; }
-.btn-action {
-  background: rgba(255,255,255,0.7); border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; color: #4B5563;
+@keyframes cardEntry {
+  from { opacity: 0; transform: translateY(30px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.btn-action:hover { background: #ffffff; color: #EF4444; }
 
-/* 底部新建按钮区域 */
-.bottom-action-area {
-  position: fixed; bottom: 40px; left: 0; right: 0; display: flex; justify-content: center; pointer-events: none;
+.nebula-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  border-color: rgba(124, 111, 247, 0.4);
+  background: rgba(25, 25, 50, 0.75);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(124, 111, 247, 0.15);
 }
-.btn-huge-create {
-  pointer-events: auto; background: #111827; color: white; border: none; padding: 16px 32px; border-radius: 999px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: 0.3s;
-}
-.btn-huge-create:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 15px 35px rgba(0,0,0,0.3); }
 
-/* 弹窗样式 */
-.vibe-modal-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(17,24,39,0.4); backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 999;
+/* 卡片内部光晕 */
+.card-glow-effect {
+  position: absolute;
+  width: 100px; height: 100px;
+  background: radial-gradient(circle, rgba(124, 111, 247, 0.2) 0%, transparent 70%);
+  top: -20px; right: -20px;
+  pointer-events: none;
+  transition: transform 0.5s;
 }
-.vibe-modal-content {
-  background: white; width: 400px; padding: 32px; border-radius: 24px; box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+.nebula-card:hover .card-glow-effect { transform: scale(2); }
+
+.card-content { display: flex; align-items: center; gap: 20px; position: relative; z-index: 1; }
+.icon-orb {
+  width: 56px; height: 56px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+  transition: 0.3s;
 }
-.vibe-modal-content h2 { margin: 0 0 20px 0; font-size: 20px; }
-.vibe-input {
-  width: 100%; box-sizing: border-box; padding: 12px 16px; font-size: 16px; border: 1px solid #E5E7EB; border-radius: 12px; margin-bottom: 24px; outline: none;
+.nebula-card:hover .icon-orb { background: rgba(124, 111, 247, 0.1); border-color: rgba(124, 111, 247, 0.3); transform: rotate(-5deg); }
+
+.nb-info h3 { margin: 0; font-size: 1.15rem; font-weight: 700; color: #fff; }
+.nb-meta { font-size: 0.8rem; color: #6b6b85; display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.nb-meta .material-icons { font-size: 14px; }
+
+/* 5. 按钮系统 */
+.btn-nebula-primary {
+  background: linear-gradient(135deg, #7c6ff7 0%, #5b4fcf 50%, #4c3fc4 100%);
+  color: white; border: none; border-radius: 12px;
+  padding: 12px 24px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+  transition: all 0.3s;
+  box-shadow: 0 8px 24px rgba(124, 111, 247, 0.3);
 }
-.vibe-input:focus {border-color: #7c6ff7;box-shadow: 0 0 0 3px rgba(124, 111, 247, 0.2);}
-.modal-footer { display: flex; justify-content: flex-end; gap: 12px; }
+.btn-nebula-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(124, 111, 247, 0.5);
+  filter: brightness(1.1);
+}
+.btn-nebula-primary:active { transform: scale(0.98); }
 
-.modal-fade-enter-active, .modal-fade-leave-active { transition: all 0.3s; }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; transform: translateY(10px); }
+.btn-nebula-outline {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e8e8f0; border-radius: 12px;
+  padding: 10px 20px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  transition: 0.3s;
+}
+.btn-nebula-outline:hover { background: rgba(255, 255, 255, 0.08); border-color: #7c6ff7; }
 
-/* 自定义确认弹窗专属样式 */
-.confirm-modal { text-align: center; }
-.modal-icon-warning { background: #FEF2F2; color: #EF4444; width: 64px; height: 64px; border-radius: 50%; display: flex; justify-content: center; align-items: center; margin: 0 auto 16px auto; font-size: 32px; }
-.modal-icon-warning .material-icons { font-size: 32px; }
-.warning-text { color: #6B7280; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
-.warning-text strong { color: #111827; }
-.btn-danger { background: #EF4444; color: white; border: none; }
-.btn-danger:hover { background: #DC2626; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
+.btn-icon-danger {
+  background: transparent; border: none; color: #6b6b85; cursor: pointer;
+  padding: 8px; border-radius: 10px; transition: 0.3s;
+}
+.btn-icon-danger:hover { background: rgba(245, 108, 108, 0.1); color: #f56c6c; }
 
+/* 6. 底部浮动区 */
+.nebula-action-float {
+  position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%);
+  z-index: 100;
+}
+.btn-huge { padding: 18px 40px; font-size: 1.1rem; border-radius: 50px; }
+
+/* 7. 玻璃态弹窗样式 */
+.glass-panel {
+  background: rgba(18, 18, 36, 0.85);
+  backdrop-filter: blur(40px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6);
+}
+.modal-header h2 { margin: 0; color: #fff; font-size: 1.5rem; display: flex; align-items: center; gap: 12px; }
+.btn-close-circle {
+  background: rgba(255, 255, 255, 0.05); border: none; color: #9898b4; border-radius: 50%;
+  width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s;
+}
+.btn-close-circle:hover { background: rgba(255, 255, 255, 0.1); color: #fff; transform: rotate(90deg); }
+
+.nebula-input-wrapper {
+  position: relative; background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px;
+  margin: 30px 0; overflow: hidden;
+}
+.nebula-input {
+  width: 100%; background: transparent; border: none; padding: 18px 20px;
+  color: #fff; font-size: 1.05rem; outline: none;
+}
+.focus-line {
+  position: absolute; bottom: 0; left: 0; height: 2px; width: 100%;
+  background: linear-gradient(90deg, #7c6ff7, #a99df9, #7c6ff7);
+  transform: scaleX(0); transition: 0.4s;
+}
+.nebula-input:focus ~ .focus-line { transform: scaleX(1); }
+
+.modal-footer { display: flex; justify-content: flex-end; gap: 16px; margin-top: 10px; }
+
+/* 危险状态弹窗 */
+.danger-modal { text-align: center; }
+.danger-icon-wrapper {
+  width: 72px; height: 72px; background: rgba(245, 108, 108, 0.1);
+  color: #f56c6c; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px; font-size: 40px; border: 1px solid rgba(245, 108, 108, 0.2);
+}
+.btn-nebula-danger {
+  background: linear-gradient(135deg, #f56c6c, #c53030);
+  color: #fff; border: none; border-radius: 12px; padding: 12px 24px; font-weight: 700; cursor: pointer;
+  transition: all 0.3s;
+}
+.btn-nebula-danger:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(245, 108, 108, 0.3); }
+
+/* 动效 */
+.modal-fade-enter-active, .modal-fade-leave-active { transition: 0.3s; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; transform: scale(0.9) translateY(20px); }
+
+/* 空状态 */
+.nebula-empty-state {
+  grid-column: 1 / -1; text-align: center; padding: 100px 0; color: #6b6b85;
+}
+.empty-orb {
+  width: 120px; height: 120px; background: radial-gradient(circle, rgba(124, 111, 247, 0.1) 0%, transparent 70%);
+  margin: 0 auto 20px; border-radius: 50%; border: 1px dashed rgba(124, 111, 247, 0.3);
+}
 </style>

@@ -1,153 +1,141 @@
 <template>
   <div class="glass-app-container">
-    <header class="app-header glass-header">
-      <!-- 悬浮 Toast 轻提示 -->
+    <header class="nebula-header">
       <transition name="toast-fade">
         <div v-if="toast.show" :class="['toast-wrapper', `toast-${toast.type}`]">
-        <span class="material-icons" style="margin-right: 8px; font-size: 20px;">
-          {{ toast.type === 'success' ? 'check_circle' : 'error_outline' }}
-        </span>
+          <span class="material-icons toast-icon">{{ toast.type === 'success' ? 'check_circle' : 'error_outline' }}</span>
           {{ toast.message }}
         </div>
       </transition>
+
       <div class="header-left">
-        <h1>🧠 专属备考外脑 (工作区)</h1>
-        <p class="subtitle">当前笔记本 ID: #{{ notebookId }}</p >
+        <h1 class="nebula-title-main">
+          <span class="material-icons tech-icon">psychology</span>
+          专属备考外脑
+        </h1>
+        <p class="nebula-subtitle">已挂载节点 ID: #{{ notebookId }} · 当前环境独立</p >
       </div>
       <div class="header-right">
-        <!-- 【修改】：返回大厅而不是直接回任务看板 -->
-        <button @click="goBack" class="btn-back">
-          <span class="material-icons" style="font-size: 16px; margin-right: 4px;">arrow_back</span>
-          返回笔记本大厅
+        <button @click="goBack" class="btn-nebula-outline">
+          <span class="material-icons">arrow_back</span>
+          断开连接并返回
         </button>
       </div>
     </header>
 
     <div class="copilot-layout">
-      <!-- 左侧：知识库管理 -->
-      <div class="library-section glass-card">
-        <div class="section-title">
-          <span class="material-icons" style="color: #34D399; margin-right: 8px;">library_books</span>
-          <h2>专属知识库</h2>
+      <div class="library-section glass-panel">
+        <div class="section-header">
+          <h2><span class="material-icons">storage</span> 知识库区块</h2>
+          <p>上传本地复习资料，构建当前节点的独立记忆</p >
         </div>
-        <p class="section-desc">上传资料，构建当前笔记本的专属大脑</p >
 
         <div class="upload-area">
           <input type="file" ref="fileInput" @change="handleFileUpload" accept=".pdf,.txt" multiple style="display: none;" />
           <button class="btn-upload" @click="triggerUpload" :disabled="isUploading">
-            <span class="material-icons" style="margin-right: 6px;">cloud_upload</span>
-            {{ isUploading ? '资料传送中...' : '上传新复习资料 (PDF/TXT)' }}
+            <span class="material-icons">{{ isUploading ? 'cloud_sync' : 'cloud_upload' }}</span>
+            {{ isUploading ? '数据切片传输中...' : '注入新资料 (PDF/TXT)' }}
           </button>
         </div>
 
-        <ul class="doc-list">
-          <li v-for="doc in documents" :key="doc.id" class="doc-card">
-            <div class="doc-icon">
-              <span class="material-icons" style="color: #34D399; font-size: 28px;">description</span>
-            </div>
+        <ul class="doc-list custom-scrollbar">
+          <li v-for="doc in documents" :key="doc.id" class="doc-item">
+            <div class="doc-icon"><span class="material-icons">description</span></div>
             <div class="doc-info">
-              <span class="doc-name">{{ doc.fileName }}</span>
-              <span class="doc-status">
-                <span class="material-icons" style="font-size: 12px; margin-right: 2px;">{{ doc.status === 'PROCESSING' ? 'hourglass_empty' : 'check_circle' }}</span>
-                {{ doc.status === 'PROCESSING' ? '待 AI 解析' : 'AI 已解析' }}
+              <span class="doc-name" :title="doc.fileName">{{ cleanFileName(doc.fileName) }}</span>
+              <span class="doc-status" :class="{ 'processing': doc.status === 'PROCESSING' }">
+                <span class="material-icons status-icon">{{ doc.status === 'PROCESSING' ? 'memory' : 'verified' }}</span>
+                {{ doc.status === 'PROCESSING' ? 'AI 神经元解析中...' : '解析完成，可检索' }}
               </span>
             </div>
-            <div class="doc-actions">
-              <span class="material-icons delete-icon" @click.stop="triggerDeleteDoc(doc.id)">delete_outline</span>
-            </div>
+            <button class="btn-icon-danger" @click.stop="triggerDeleteDoc(doc.id)" title="销毁资料">
+              <span class="material-icons">delete</span>
+            </button>
           </li>
-          <span v-if="documents.length === 0" class="empty-state">
-            当前笔记本还没有上传复习资料哦~
-          </span>
+          <div v-if="documents.length === 0" class="empty-state">
+            <span class="material-icons" style="font-size: 32px; margin-bottom: 10px; opacity: 0.5;">folder_open</span>
+            <p>该区块暂时为空，亟待数据注入</p >
+          </div>
         </ul>
       </div>
 
-      <!-- 右侧：AI 问答区 -->
-      <div class="chat-section glass-card">
-        <div class="section-title">
-          <span class="material-icons" style="color: #60A5FA; margin-right: 8px;">auto_awesome</span>
-          <h2>AI 导师对话</h2>
+      <div class="chat-section glass-panel">
+        <div class="section-header">
+          <h2><span class="material-icons" style="color: #60A5FA;">auto_awesome</span> AI 导师链路</h2>
+          <p>基于当前知识库区块进行对话检索</p >
         </div>
-        <p class="section-desc">上下文独立，对话记录永久保存</p >
 
-        <div class="chat-window" ref="chatWindow">
-          <!-- 历史对话渲染 -->
+        <div class="chat-window custom-scrollbar" ref="chatWindow">
           <div v-for="(msg, index) in chatHistory" :key="index" :class="['chat-bubble-wrapper', msg.role]">
-            <div class="chat-bubble">
-              <span v-if="msg.role === 'ai'" class="ai-avatar">👋</span>
-              <div class="bubble-content">
+            <div class="chat-bubble-inner">
+              <div v-if="msg.role === 'ai'" class="ai-avatar">✨</div>
+              <div class="chat-bubble">
                 <template v-for="(part, idx) in parseMessage(msg.text)" :key="idx">
-                  <!-- 普通文本 -->
                   <span v-if="part.type === 'text'" style="white-space: pre-wrap;">{{ part.content }}</span>
-                  <!-- 引用按钮 -->
-                  <span v-else-if="part.type === 'citation'" class="citation-badge" @click="showSource(msg.sources, part.id)">{{ part.id }}</span>
+                  <span v-else-if="part.type === 'citation'" class="citation-badge" @click="showSource(msg.sources, part.id)">
+                    {{ part.id }}
+                  </span>
                 </template>
               </div>
+              <div v-if="msg.role === 'user'" class="user-avatar">👤</div>
             </div>
           </div>
           <div v-if="isChatting" class="chat-bubble-wrapper ai">
-            <div class="chat-bubble"><span class="ai-avatar">✨</span>正在飞速检索当前知识库...</div>
+            <div class="chat-bubble-inner">
+              <div class="ai-avatar">✨</div>
+              <div class="chat-bubble typing-glow">正在高速遍历本地知识图谱...</div>
+            </div>
           </div>
         </div>
 
-        <!-- 底部输入框 -->
         <div class="chat-input-wrapper">
           <textarea
               class="chat-input custom-scrollbar"
               v-model="userQuery"
-              placeholder="向当前笔记本提问..."
+              placeholder="向 AI 导师提问 (按 Enter 飞速发送)..."
               @keydown="handleKeydown"
               @input="autoResize"
               :disabled="isChatting"
               rows="1"
               ref="chatInputRef"
           ></textarea>
-          <button
-              class="btn-send"
-              @click="handleChat"
-              :disabled="!userQuery.trim() || isChatting"
-          >
-            <span class="material-icons" style="font-size: 18px; margin-right: 4px;">send</span>
-            发送
+          <button class="btn-send" @click="handleChat" :disabled="!userQuery.trim() || isChatting">
+            <span class="material-icons">send</span>
           </button>
         </div>
       </div>
     </div>
-    <!-- 自定义删除资料确认弹窗 -->
+
     <transition name="modal-fade">
-      <div class="vibe-modal-overlay" v-if="deleteDocConfirm.show" @click.self="deleteDocConfirm.show = false">
-        <div class="vibe-modal-content confirm-modal">
-          <div class="modal-icon-warning">
-            <span class="material-icons">warning_amber</span>
-          </div>
-          <h2>确定要删除这条资料吗？</h2>
-          <p class="warning-text">删除后，该文件及其专属向量记忆将被彻底清除。</p >
+      <div class="nebula-modal-overlay" v-if="deleteDocConfirm.show" @click.self="deleteDocConfirm.show = false">
+        <div class="nebula-modal-content glass-panel danger-modal">
+          <div class="danger-icon-wrapper"><span class="material-icons">warning_amber</span></div>
+          <h2>确认销毁该资料节点？</h2>
+          <p class="warning-text">切断链接后，该文件的所有专属向量记忆将被从空间中彻底清除。</p >
           <div class="modal-footer">
-            <button class="btn-pill btn-outline" @click="deleteDocConfirm.show = false">取消</button>
-            <button class="btn-pill btn-danger" @click="executeDeleteDoc">确定删除</button>
+            <button class="btn-nebula-outline" @click="deleteDocConfirm.show = false">中止</button>
+            <button class="btn-nebula-danger" @click="executeDeleteDoc">确认销毁</button>
           </div>
         </div>
       </div>
     </transition>
 
-    <!-- 来源溯源查看弹窗 -->
     <transition name="modal-fade">
-      <div class="vibe-modal-overlay" v-if="sourceModal.show" @click.self="sourceModal.show = false">
-        <div class="vibe-modal-content source-modal">
+      <div class="nebula-modal-overlay" v-if="sourceModal.show" @click.self="sourceModal.show = false">
+        <div class="nebula-modal-content glass-panel source-modal">
           <div class="source-header">
-            <span class="material-icons" style="color: #60A5FA; margin-right: 8px;">find_in_page</span>
-            <h3>溯源信息 (来源自：{{ sourceModal.fileName }})</h3>
+            <span class="material-icons tech-icon" style="font-size: 24px;">find_in_page</span>
+            <h3>溯源定位: {{ sourceModal.fileName }}</h3>
           </div>
           <div class="source-body custom-scrollbar">
             {{ sourceModal.content }}
           </div>
-          <div class="modal-footer" style="margin-top: 20px;">
-            <button class="btn-pill btn-outline" @click="sourceModal.show = false">关闭</button>
+          <div class="modal-footer" style="margin-top: 24px;">
+            <button class="btn-nebula-outline" @click="sourceModal.show = false">关闭窗口</button>
           </div>
         </div>
       </div>
     </transition>
-
   </div>
 </template>
 
@@ -157,8 +145,8 @@ import { useRouter, useRoute } from 'vue-router';
 import request from '../utils/request';
 
 const router = useRouter();
-const route = useRoute(); // 引入路由获取参数
-const notebookId = route.params.notebookId; // 核心：当前页面的隔离 ID
+const route = useRoute();
+const notebookId = route.params.notebookId;
 
 const fileInput = ref(null);
 const documents = ref([]);
@@ -169,29 +157,21 @@ let toastTimer = null;
 const userQuery = ref('');
 const isChatting = ref(false);
 const chatInputRef = ref(null);
-const sourceModal = ref({ show: false, fileName: '', content: '' }); // 在 script 顶部新增溯源弹窗状态
+const sourceModal = ref({ show: false, fileName: '', content: '' });
 
-// 1. 新增：资料删除确认弹窗的状态
 const deleteDocConfirm = ref({ show: false, id: null });
+const triggerDeleteDoc = (id) => { deleteDocConfirm.value = { show: true, id }; };
 
-// 2. 新增：点击垃圾桶时，呼出弹窗并记录要删除的资料 ID
-const triggerDeleteDoc = (id) => {deleteDocConfirm.value = { show: true, id };};
-
-// 初始聊天记录为空，等待后端拉取
 const chatHistory = ref([]);
-
 const goBack = () => router.push('/notebooks');
 const triggerUpload = () => fileInput.value.click();
 
 const showToast = (message, type = 'success') => {
   if (toastTimer) clearTimeout(toastTimer);
   toast.value = { show: true, message, type };
-  toastTimer = setTimeout(() => {
-    toast.value.show = false;
-  }, 3000);
+  toastTimer = setTimeout(() => { toast.value.show = false; }, 3000);
 };
 
-// 帮前端解析 "[1]" 为按钮的魔法函数
 const parseMessage = (text) => {
   if (!text) return [];
   const regex = /\[(\d+)\]/g;
@@ -211,23 +191,13 @@ const parseMessage = (text) => {
   return parts;
 };
 
-// 点击引用角标触发溯源弹窗
 const showSource = (sources, id) => {
   if (!sources || sources.length === 0) {
     showToast('当前回答没有关联的本地知识库来源', 'error');
     return;
   }
-
-  // 1. 正常去找 AI 标出的序号
   let source = sources.find(s => s.id === id);
-
-  // 2. 【前端容错机制】：如果 AI 产生了幻觉乱标了序号（例如只有1个来源它却标了2）
-  // 我们直接拿检索出来的第 1 个最高相关性文件兜底显示，避免弹窗报错失效
-  if (!source && sources.length > 0) {
-    source = sources[0];
-  }
-
-  // 3. 弹出窗口
+  if (!source && sources.length > 0) source = sources[0];
   if (source) {
     sourceModal.value = { show: true, fileName: source.fileName, content: source.content };
   } else {
@@ -235,21 +205,19 @@ const showSource = (sources, id) => {
   }
 };
 
-// 清洗文件名：去除前面的时间戳和下划线 (例如 1777948535919_文档.txt -> 文档.txt)
 const cleanFileName = (fileName) => {
   if (!fileName) return '未知文件';
   return fileName.replace(/^\d+_/, '');
 };
 
-// 修改：点击自定义弹窗的“确定”后，真正执行删除
 const executeDeleteDoc = async () => {
   try {
     await request.delete(`/api/documents/${deleteDocConfirm.value.id}`);
-    deleteDocConfirm.value.show = false; // 隐藏弹窗
-    showToast('资料已成功删除', 'success');
-    fetchDocuments(); // 刷新资料列表
+    deleteDocConfirm.value.show = false;
+    showToast('节点资料已成功销毁', 'success');
+    fetchDocuments();
   } catch (error) {
-    showToast('删除失败，请稍后重试', 'error');
+    showToast('销毁失败，请稍后重试', 'error');
   }
 };
 
@@ -262,7 +230,6 @@ const scrollToBottom = async () => {
 
 let pollingTimer = null;
 
-// 【修改】按笔记本 ID 获取资料
 const fetchDocuments = async () => {
   try {
     documents.value = await request.get(`/api/documents?notebookId=${notebookId}`);
@@ -278,7 +245,6 @@ const fetchDocuments = async () => {
   }
 };
 
-// 【修改】fetchChatHistory：把数据库里的 JSON 字符串转回数组
 const fetchChatHistory = async () => {
   try {
     const history = await request.get(`/api/chat/${notebookId}`);
@@ -287,7 +253,7 @@ const fetchChatHistory = async () => {
         role: msg.role,
         text: msg.content,
         sources: msg.sources ? JSON.parse(msg.sources) : [],
-        isExpanded: false // <--- 新增：让历史记录默认折叠起来
+        isExpanded: false
       }));
     } else {
       chatHistory.value = [{ role: 'ai', text: '你好！我已经准备好了，上传资料后随时向我提问吧！', sources: [] }];
@@ -305,28 +271,22 @@ onUnmounted(() => {
 const handleFileUpload = async (event) => {
   const files = event.target.files;
   if (!files || files.length === 0) return;
-
   isUploading.value = true;
   let successCount = 0;
   let failCount = 0;
-
-  // 使用 for...of 循环，让文件一个接一个地上传（保护后端 Python 引擎不被瞬间冲垮）
   for (const file of files) {
     if (file.size === 0) {
       showToast(`【${file.name}】是空文件，已跳过`, 'error');
       continue;
     }
-
     const isDuplicate = documents.value.some(doc => doc.fileName === file.name);
     if (isDuplicate) {
       showToast(`【${file.name}】已存在，已跳过`, 'error');
       continue;
     }
-
     const formData = new FormData();
     formData.append('file', file);
     formData.append('notebookId', notebookId);
-
     try {
       await request.post('/api/documents/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -338,69 +298,31 @@ const handleFileUpload = async (event) => {
       failCount++;
     }
   }
-
-  // 全部循环结束后，统一给个提示并刷新列表
   if (successCount > 0) {
-    showToast(`${successCount} 个文件已加入解析队列！`, 'success');
+    showToast(`${successCount} 个文件已加入神经元解析队列！`, 'success');
     await fetchDocuments();
   }
-
   isUploading.value = false;
-  event.target.value = ''; // 清空 input，方便下次选择同样的文件
-};
-
-const deleteDoc = async (id) => {
-  if (!confirm("确定要删除这条资料吗？")) return;
-  try {
-    await request.delete(`/api/documents/${id}`);
-    showToast('资料已成功删除', 'success');
-    await fetchDocuments();
-  } catch (error) {
-    showToast('删除失败，请稍后重试', 'error');
-  }
+  event.target.value = '';
 };
 
 const handleChat = async () => {
   if (!userQuery.value.trim() || isChatting.value) return;
-
   const currentQuestion = userQuery.value;
   chatHistory.value.push({ role: 'user', text: currentQuestion, sources: [] });
   userQuery.value = '';
   isChatting.value = true;
-
-  await nextTick(() => {
-    if (chatInputRef.value) {
-      chatInputRef.value.style.height = '24px';
-    }
-  });
+  await nextTick(() => { if (chatInputRef.value) chatInputRef.value.style.height = '24px'; });
   await scrollToBottom();
-
   try {
-    const res = await request.post('/api/chat', {
-      notebookId: parseInt(notebookId),
-      query: currentQuestion
-    });
-
-    chatHistory.value.push({
-      role: 'ai',
-      text: res.answer,
-      sources: res.sources || [],
-      isExpanded: false
-    });
-
+    const res = await request.post('/api/chat', { notebookId: parseInt(notebookId), query: currentQuestion });
+    chatHistory.value.push({ role: 'ai', text: res.answer, sources: res.sources || [], isExpanded: false });
   } catch (error) {
-    chatHistory.value.push({
-      role: 'ai',
-      text: '❌ 抱歉，大脑暂时断连，请检查 Java 后端或 Python 引擎是否启动。',
-      sources: [],
-      isExpanded: false
-    });
+    chatHistory.value.push({ role: 'ai', text: '❌ 抱歉，大脑暂时断连，请检查底层服务器。', sources: [], isExpanded: false });
   } finally {
     isChatting.value = false;
     await scrollToBottom();
-    await nextTick(() => {
-      if (chatInputRef.value) chatInputRef.value.focus();
-    });
+    await nextTick(() => { if (chatInputRef.value) chatInputRef.value.focus(); });
   }
 };
 
@@ -420,216 +342,82 @@ const autoResize = () => {
 
 onMounted(() => {
   fetchDocuments();
-  fetchChatHistory(); // 加载页面时拉取漫游历史记录
+  fetchChatHistory();
 });
 </script>
 
 <style scoped>
-/* 此处的 CSS 和之前完全一致，保留了你喜欢的渐变与毛玻璃风格 */
-.glass-app-container {min-height: 100vh;padding: 30px 40px;background: linear-gradient(135deg, #F0FDF4 0%, #E0F2FE 100%);background-image: radial-gradient(at 80% 80%, rgba(209, 250, 229, 0.7) 0, transparent 50%), radial-gradient(at 10% 20%, rgba(224, 242, 254, 0.7) 0, transparent 50%);font-family: system-ui, -apple-system, sans-serif;box-sizing: border-box;}
-
-.glass-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.glass-header h1 { font-size: 24px; color: #1F2937; margin: 0 0 4px 0; font-weight: 700; }
-.subtitle { color: #6B7280; font-size: 14px; margin: 0; }
-.btn-back { display: flex; align-items: center; background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(255, 255, 255, 0.9); padding: 8px 16px; border-radius: 999px; color: #4B5563; font-weight: 500; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.02); transition: all 0.3s ease; }
-.btn-back:hover { background: #ffffff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-
-.copilot-layout { display: grid; grid-template-columns: 350px 1fr; gap: 24px; height: calc(100vh - 120px); }
-
-.glass-card { background: rgba(255, 255, 255, 0.65); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.8); border-radius: 24px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03); padding: 24px; display: flex; flex-direction: column; }
-
-.section-title { display: flex; align-items: center; margin-bottom: 4px; }
-.section-title h2 { font-size: 18px; color: #111827; margin: 0; font-weight: 600; }
-.section-desc { color: #9CA3AF; font-size: 13px; margin: 0 0 20px 0; }
-
-.btn-upload { width: 100%; display: flex; align-items: center; justify-content: center; background: #D1FAE5; color: #059669; border: none; padding: 14px; border-radius: 16px; font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.3s ease; margin-bottom: 20px; }
-.btn-upload:hover { background: #A7F3D0; transform: translateY(-1px); }
-
-.doc-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; padding-right: 4px; }
-.doc-list::-webkit-scrollbar { width: 4px; }
-.doc-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
-
-.doc-card { display: flex; align-items: center; background: rgba(255, 255, 255, 0.9); padding: 16px; border-radius: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02); border: 1px solid rgba(255, 255, 255, 1); transition: all 0.2s; position: relative; }
-.doc-card:hover { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04); transform: translateY(-2px); }
-.doc-card::before { content: ''; position: absolute; left: 0; top: 15%; height: 70%; width: 3px; background: #34D399; border-radius: 0 4px 4px 0; }
-.doc-info { flex: 1; margin-left: 12px; display: flex; flex-direction: column; }
-.doc-name { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 4px; word-break: break-all; }
-.doc-status { display: flex; align-items: center; font-size: 12px; color: #10B981; }
-.doc-actions { display: flex; align-items: center; gap: 8px; color: #9CA3AF; }
-.delete-icon { font-size: 20px; cursor: pointer; color: #FCA5A5; transition: 0.2s; }
-.delete-icon:hover { color: #EF4444; }
-.empty-state { text-align: center; color: #9CA3AF; font-size: 14px; margin-top: 40px; }
-
-.chat-window { flex: 1; overflow-y: auto; padding: 10px 20px 20px 0; display: flex; flex-direction: column; }
-.chat-window::-webkit-scrollbar { width: 4px; }
-.chat-window::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
-
-.chat-bubble-wrapper { display: flex; margin-bottom: 24px; width: 100%; }
+/* 一行一类名：超高密度压缩 CSS */
+.glass-app-container { min-height: 100vh; padding: 40px 60px; background: transparent; color: #e8e8f0; font-family: 'Inter', system-ui, sans-serif; box-sizing: border-box; }
+.nebula-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+.nebula-title-main { font-size: 1.8rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 10px; color: #fff; text-shadow: 0 0 20px rgba(124, 111, 247, 0.3); }
+.tech-icon { color: #7c6ff7; font-size: 28px; }
+.nebula-subtitle { color: #6b6b85; font-size: 0.9rem; margin: 6px 0 0; }
+.btn-nebula-outline { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: #e8e8f0; border-radius: 12px; padding: 10px 18px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
+.btn-nebula-outline:hover { background: rgba(255,255,255,0.08); border-color: #7c6ff7; }
+.copilot-layout { display: grid; grid-template-columns: 340px 1fr; gap: 24px; height: calc(100vh - 140px); }
+.glass-panel { background: rgba(18,18,36,0.65); backdrop-filter: blur(40px) saturate(140%); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; box-shadow: 0 16px 40px rgba(0,0,0,0.4); display: flex; flex-direction: column; overflow: hidden; }
+.section-header { margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 14px; }
+.section-header h2 { font-size: 1.15rem; color: #fff; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+.section-header p { font-size: 0.85rem; color: #6b6b85; margin: 0; }
+.upload-area { margin-bottom: 16px; }
+.btn-upload { width: 100%; background: rgba(124, 111, 247, 0.08); border: 1.5px dashed rgba(124, 111, 247, 0.4); color: #a99df9; padding: 14px; border-radius: 14px; font-weight: 600; cursor: pointer; transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 8px; }
+.btn-upload:hover:not(:disabled) { background: rgba(124, 111, 247, 0.2); border-color: #7c6ff7; color: #fff; box-shadow: 0 0 16px rgba(124, 111, 247, 0.2); }
+.btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
+.doc-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; padding-right: 6px; display: flex; flex-direction: column; gap: 12px; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+.doc-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 14px; padding: 14px; display: flex; align-items: center; gap: 12px; transition: 0.3s; position: relative; overflow: hidden; }
+.doc-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(124,111,247,0.3); }
+.doc-item::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #7c6ff7; opacity: 0; transition: 0.3s; }
+.doc-item:hover::before { opacity: 1; }
+.doc-icon { color: #a99df9; display: flex; align-items: center; }
+.doc-info { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.doc-name { font-size: 0.9rem; font-weight: 600; color: #e8e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-status { font-size: 0.75rem; color: #4ade80; display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.doc-status.processing { color: #f59e0b; }
+.status-icon { font-size: 14px; }
+.btn-icon-danger { background: transparent; border: none; color: #6b6b85; padding: 6px; cursor: pointer; border-radius: 8px; transition: 0.3s; display: flex; align-items: center; justify-content: center; }
+.btn-icon-danger:hover { background: rgba(245,108,108,0.1); color: #f56c6c; }
+.empty-state { text-align: center; color: #6b6b85; font-size: 0.85rem; margin-top: 40px; display: flex; flex-direction: column; align-items: center; }
+.chat-window { flex: 1; overflow-y: auto; padding-right: 12px; display: flex; flex-direction: column; gap: 24px; margin-bottom: 20px; }
+.chat-bubble-wrapper { display: flex; width: 100%; }
 .chat-bubble-wrapper.ai { justify-content: flex-start; }
 .chat-bubble-wrapper.user { justify-content: flex-end; }
-
-.chat-bubble { display: flex; align-items: flex-start; max-width: 80%; padding: 16px 20px; font-size: 15px; line-height: 1.6; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
-.ai .chat-bubble { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(255,255,255,1); color: #374151; border-radius: 4px 20px 20px 20px; }
-.user .chat-bubble { background: #34D399; color: #ffffff; border-radius: 20px 4px 20px 20px; }
-.ai-avatar { margin-right: 8px; font-size: 18px; }
-
-.chat-input-wrapper { display: flex; align-items: center; background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(255, 255, 255, 1); border-radius: 99px; padding: 6px 6px 6px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); margin-top: 10px; }
-.chat-input { flex: 1; border: none; background: transparent; outline: none; font-size: 15px; color: #374151; resize: none; padding-top: 2px; line-height: 1.5; max-height: 120px; font-family: inherit; }
-.chat-input::placeholder { color: #9CA3AF; }
-
-.btn-send { display: flex; align-items: center; justify-content: center; background: #34D399; color: white; border: none; padding: 10px 24px; border-radius: 999px; font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.3s ease; }
-.btn-send:hover:not(:disabled) { background: #10B981; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
-.btn-send:disabled { background: #D1D5DB; cursor: not-allowed; }
-
-.toast-wrapper { position: fixed; top: 32px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 99px; display: flex; align-items: center; font-size: 14px; font-weight: 500; z-index: 9999; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.toast-success { background: rgba(16, 185, 129, 0.85); color: white; border: 1px solid rgba(255, 255, 255, 0.3); }
-.toast-error { background: rgba(239, 68, 68, 0.85); color: white; border: 1px solid rgba(255, 255, 255, 0.3); }
+.chat-bubble-inner { display: flex; align-items: flex-end; gap: 12px; max-width: 85%; }
+.ai-avatar, .user-avatar { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: rgba(124,111,247,0.2); border: 1px solid rgba(124,111,247,0.4); border-radius: 50%; flex-shrink: 0; font-size: 16px; }
+.user-avatar { background: rgba(74,222,128,0.2); border-color: rgba(74,222,128,0.4); }
+.chat-bubble { padding: 14px 18px; font-size: 0.95rem; line-height: 1.6; border-radius: 16px; position: relative; word-break: break-word; }
+.ai .chat-bubble { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #e8e8f0; border-bottom-left-radius: 4px; }
+.user .chat-bubble { background: linear-gradient(135deg, #7c6ff7, #5b4fcf); color: #fff; border-bottom-right-radius: 4px; box-shadow: 0 4px 15px rgba(124, 111, 247, 0.3); }
+.typing-glow { animation: pulseGlow 1.5s infinite; color: #a99df9 !important; }
+@keyframes pulseGlow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+.chat-input-wrapper { display: flex; align-items: flex-end; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 10px 10px 10px 16px; gap: 12px; transition: 0.3s; }
+.chat-input-wrapper:focus-within { border-color: #7c6ff7; background: rgba(18,18,36,0.8); box-shadow: 0 0 0 3px rgba(124,111,247,0.15); }
+.chat-input { flex: 1; background: transparent; border: none; color: #e8e8f0; font-size: 0.95rem; resize: none; max-height: 120px; outline: none; padding: 8px 0; line-height: 1.5; font-family: inherit; }
+.chat-input::placeholder { color: #6b6b85; }
+.btn-send { background: #7c6ff7; color: #fff; border: none; border-radius: 12px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; flex-shrink: 0; }
+.btn-send:hover:not(:disabled) { background: #6b5fdf; box-shadow: 0 4px 15px rgba(124,111,247,0.4); transform: translateY(-2px); }
+.btn-send:disabled { background: rgba(255,255,255,0.08); color: #6b6b85; cursor: not-allowed; }
+.citation-badge { display: inline-flex; justify-content: center; align-items: center; background: rgba(124,111,247,0.2); color: #a99df9; border: 1px solid rgba(124,111,247,0.4); font-size: 0.75rem; font-weight: 700; width: 22px; height: 22px; border-radius: 50%; margin: 0 4px; cursor: pointer; transition: 0.3s; transform: translateY(-2px); }
+.citation-badge:hover { background: #7c6ff7; color: #fff; box-shadow: 0 0 10px rgba(124,111,247,0.5); transform: translateY(-4px) scale(1.1); }
+.toast-wrapper { position: fixed; top: 28px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 50px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; z-index: 9999; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 12px 40px rgba(0,0,0,0.5); background: rgba(18,18,36,0.85); }
+.toast-success { border-color: rgba(74,222,128,0.4); color: #4ade80; }
+.toast-error { border-color: rgba(245,108,108,0.4); color: #f56c6c; }
 .toast-fade-enter-active, .toast-fade-leave-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translate(-50%, -20px) scale(0.95); }
-
-/* --- 确认弹窗专属警告样式 --- */
-.vibe-modal-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(17,24,39,0.4); backdrop-filter: blur(8px);
-  display: flex; justify-content: center; align-items: center; z-index: 999;
-}
-.vibe-modal-content {
-  background: white; width: 400px; padding: 32px; border-radius: 24px; box-shadow: 0 25px 50px rgba(0,0,0,0.2);
-}
-.confirm-modal { text-align: center; }
-.modal-icon-warning {
-  background: #FEF2F2; color: #EF4444; width: 64px; height: 64px;
-  border-radius: 50%; display: flex; justify-content: center; align-items: center;
-  margin: 0 auto 16px auto; font-size: 32px;
-}
-.warning-text { color: #6B7280; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+.nebula-modal-overlay { position: fixed; inset: 0; background: rgba(6,6,15,0.7); backdrop-filter: blur(10px); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+.nebula-modal-content { background: rgba(18,18,36,0.85); backdrop-filter: blur(40px) saturate(140%); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 32px; box-shadow: 0 25px 80px rgba(0,0,0,0.6); max-width: 450px; width: 100%; }
+.danger-modal { text-align: center; }
+.danger-icon-wrapper { width: 64px; height: 64px; background: rgba(245,108,108,0.1); color: #f56c6c; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 32px; border: 1px solid rgba(245,108,108,0.2); }
+.warning-text { color: #9898b4; font-size: 0.9rem; line-height: 1.6; margin-bottom: 24px; }
 .modal-footer { display: flex; justify-content: center; gap: 12px; }
-.btn-danger { background: #EF4444; color: white; border: none; }
-.btn-danger:hover { background: #DC2626; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
-
-/* 复用一些弹窗通用样式，如果你之前有了就可以忽略 */
-.btn-pill { display: flex; align-items: center; gap: 6px; padding: 10px 22px; border-radius: 999px; font-weight: 600; cursor: pointer; transition: 0.3s; }
-.btn-outline { background: #ffffff; color: #374151; border: 1px solid #E5E7EB; }
-.btn-outline:hover { background: #F3F4F6; }
-.modal-fade-enter-active, .modal-fade-leave-active { transition: all 0.3s; }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; transform: translateY(10px); }
-
-/* NotebookLM 风格的引用角标 */
-.citation-badge {display: inline-flex; justify-content: center; align-items: center;background: #E0E7FF; color: #4338CA; font-size: 12px; font-weight: 700;width: 20px; height: 20px; border-radius: 50%; margin: 0 4px;cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(67, 56, 202, 0.15);transform: translateY(-2px); /* 稍微上浮，类似上标 */}
-.citation-badge:hover { background: #4338CA; color: white; transform: translateY(-3px) scale(1.1); box-shadow: 0 4px 8px rgba(67, 56, 202, 0.3); }
-
-/* 溯源查看弹窗专属样式 */
-.source-modal { width: 500px; max-width: 90vw; }
-.source-header { display: flex; align-items: center; border-bottom: 1px solid #E5E7EB; padding-bottom: 12px; margin-bottom: 16px; }
-.source-header h3 { margin: 0; font-size: 16px; color: #1F2937; }
-.source-body { background: #F9FAFB; padding: 16px; border-radius: 12px; font-size: 14px; color: #4B5563; line-height: 1.8; max-height: 300px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #E5E7EB; }
-
-/* --- 新增：溯源兜底区域的优雅样式 --- */
-.source-fallback-area {margin-top: 12px;width: 100%;}
-.source-divider {height: 1px;background: rgba(0, 0, 0, 0.06);margin-bottom: 8px;}
-.source-title {font-size: 12px;color: #6B7280;margin-bottom: 6px;font-weight: 500;}
-.source-chips {display: flex;flex-wrap: wrap;gap: 8px;}
-.fallback-chip {background: #F3F4F6;color: #374151;font-size: 12px;padding: 4px 10px;border-radius: 6px;cursor: pointer;transition: all 0.2s ease;border: 1px solid #E5E7EB;display: inline-flex;align-items: center;}
-.fallback-chip:hover {background: #E0E7FF;color: #4338CA;border-color: #C7D2FE;transform: translateY(-1px);}
-
-/* ==========================================
-   NotebookLM 风格高级溯源面板
-========================================== */
-.notebook-source-widget {
-  /* 核心魔法：宽度由内容撑开，不再占满整行 */
-  width: fit-content;
-  min-width: 180px;
-  max-width: 100%;
-
-  /* 柔和的 Material 3 表面色，无边框 */
-  background-color: #F3F4F6;
-  border-radius: 16px;
-  margin-top: 12px;
-
-  /* 确保内部圆角不溢出 */
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* --- 头部触发区 --- */
-.widget-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  cursor: pointer;
-  user-select: none;
-  transition: background-color 0.2s;
-}
-
-.widget-header:hover {
-  background-color: #E5E7EB;
-}
-
-.widget-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.chevron {
-  font-size: 18px;
-  color: #6B7280;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.chevron.is-open {
-  /* 展开时箭头平滑翻转 180 度 */
-  transform: rotate(180deg);
-}
-
-/* --- 展开的内容区 --- */
-.widget-body {
-  padding: 0 8px 8px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.source-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background-color: #FFFFFF;
-  padding: 8px 12px;
-  border-radius: 12px;
-  cursor: pointer;
-  /* 非常克制的交互边框，替代粗糙的阴影 */
-  border: 1px solid transparent;
-  transition: all 0.2s ease;
-}
-
-.source-row:hover {
-  border-color: #D1D5DB;
-  background-color: #F9FAFB;
-}
-
-/* --- 左侧极致还原的数字徽章 --- */
-.source-index {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  /* 提取自截图的淡紫色底与深紫色字 */
-  background-color: #E0E7FF;
-  color: #4338CA;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.source-filename {
-  font-size: 13px;
-  color: #4B5563;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.btn-nebula-danger { background: linear-gradient(135deg, #f56c6c, #c53030); color: #fff; border: none; border-radius: 12px; padding: 10px 24px; font-weight: 600; cursor: pointer; transition: 0.3s; }
+.btn-nebula-danger:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(245,108,108,0.3); }
+.source-modal { max-width: 600px; width: 100%; }
+.source-header { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; margin-bottom: 20px; }
+.source-header h3 { margin: 0; font-size: 1.1rem; color: #fff; }
+.source-body { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; font-size: 0.95rem; color: #e8e8f0; line-height: 1.8; max-height: 40vh; overflow-y: auto; white-space: pre-wrap; }
+.modal-fade-enter-active, .modal-fade-leave-active { transition: 0.3s; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; transform: translateY(20px) scale(0.95); }
 </style>

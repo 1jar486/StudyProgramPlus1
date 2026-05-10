@@ -8,6 +8,7 @@ import lombok.Data;
 @Data
 public class Document {
     private Integer id;
+    private Long userId;
     private String fileName;
     private String filePath;
     private String status; // PROCESSING, COMPLETED, FAILED
@@ -16,7 +17,4 @@ public class Document {
     // 无参构造方法（必须有）
     public Document() {}
 
-    public void setUserId(Long userId) {
-
-    }
 }

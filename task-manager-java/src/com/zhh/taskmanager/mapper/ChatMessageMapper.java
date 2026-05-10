@@ -17,7 +17,7 @@ public interface ChatMessageMapper {
 
     // 清空某个笔记本的对话记录（用于删除笔记本时级联删除）
     @Delete("DELETE FROM chat_message WHERE notebook_id = #{notebookId}")
-    void deleteByNotebookId(Integer notebookId);
+    void deleteByNotebookId(@Param("notebookId") Integer notebookId);
 
     @Select("""
         SELECT * FROM (
