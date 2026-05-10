@@ -8,4 +8,6 @@ public interface TaskService {
     void completeTask(int id, Long userIdFromToken);
     void deleteTask(int id, Long userIdFromToken);
     void updateTaskMemo(int id, String memo, Long userIdFromToken);
+    // 新增：更新核心信息（标题、优先级、标签）
+    void updateTaskCore(int id, String title, String priority, String tag, Long userIdFromToken);
 }

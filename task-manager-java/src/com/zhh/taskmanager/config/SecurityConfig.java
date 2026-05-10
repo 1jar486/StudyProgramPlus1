@@ -16,7 +16,6 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder(){
         return new BCryptPasswordEncoder();
     }
-
     // 2. 配置安全拦截规则（放行所有接口，禁用跨站请求伪造保护以便前后端分离调用）
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {

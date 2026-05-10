@@ -1,162 +1,133 @@
 <template>
-  <div class="app-container">
-    <header class="vibe-header">
-      <div class="header-left">
-        <h1>
-          <span class="material-icons title-icon">auto_awesome</span>
-          今日清单
-        </h1>
-        <p class="current-date">{{ currentDate }}</p >
+  <div class="nebula-app">
+    <div class="nebula-halos">
+      <div class="halo halo-1"></div>
+      <div class="halo halo-2"></div>
+      <div class="halo halo-3"></div>
+    </div>
+    <canvas id="nebula-canvas" class="nebula-particles"></canvas>
+
+
+    <transition name="toast-fade">
+      <div v-if="toast.show" :class="['nebula-toast', `toast-${toast.type}`]">
+        <span class="material-icons toast-icon">{{ toast.type === 'success' ? 'check_circle' : 'error_outline' }}</span>
+        {{ toast.message }}
       </div>
+    </transition>
 
-      <div class="header-right">
-        <button class="btn-pill btn-ai" @click="router.push('/copilot')">
-          <span class="material-icons icon-sm">auto_awesome</span>
-          进入 AI 备考外脑
-        </button>
 
-        <button class="btn-pill btn-outline" @click="handleLogout">
-          登出账号
-        </button>
-
-        <button class="btn-pill btn-icon" @click="toggleTheme">
-          <span class="material-icons">{{ isDark ? 'light_mode' : 'dark_mode' }}</span>
-        </button>
-      </div>
-    </header>
-
-    <div class="vibe-input-cabin">
-      <div class="input-group main-input">
-        <span class="material-icons group-icon">track_changes</span>
-        <input
-            type="text"
-            v-model="newTask.title"
-            placeholder="写下你的下一个目标..."
-            autofocus
-            @keyup.enter="handleAddTask"
-        >
-      </div>
-
-      <div class="input-group select-group">
-        <span class="material-icons group-icon icon-bolt">bolt</span>
-        <select v-model="newTask.priority">
-          <option value="高">高优先级</option>
-          <option value="中" selected>中优先级</option>
-          <option value="低">低优先级</option>
-        </select>
-        <span class="material-icons dropdown-arrow">expand_more</span>
-      </div>
-
-      <div class="input-group select-group">
-        <span class="material-icons group-icon icon-bag">business_center</span>
-        <select v-model="newTask.tag">
-          <option value="学习">学习</option>
-          <option value="生活">生活</option>
-          <option value="兼职">副业</option>
-        </select>
-        <span class="material-icons dropdown-arrow">expand_more</span>
-      </div>
-
-      <button class="btn-add-task" @click="handleAddTask">
-        添加 <span class="material-icons">add</span>
+    <div class="nebula-nav-bar glass-panel">
+      <button class="nav-btn text-accent" @click="router.push('/notebooks')">
+        <span class="material-icons">auto_awesome</span> 进入AI大脑
       </button>
+      <div class="nav-divider"></div>
+      <button class="nav-icon-btn" @click="toggleTheme" title="切换模式">
+        <span class="material-icons">{{ isDark ? 'light_mode' : 'dark_mode' }}</span>
+      </button>
+      <button class="nav-btn text-weak" @click="handleLogout">登出</button>
     </div>
 
-    <!-- 替换后的统计栏 -->
-    <div class="vibe-stats-bar">
-      <span class="stat-item">全部 <span class="stat-num">{{ totalCount }}</span></span>
-      <span class="stat-item">已完成 <span class="stat-num">{{ completedCount }}</span></span>
-    </div>
 
-    <div class="vibe-task-board">
-      <div class="vibe-board-column" v-for="col in boardColumns" :key="col.name">
-        <div class="column-header-centered">
-          <span class="material-icons column-icon">{{ col.icon }}</span>
-          <span class="column-name">{{ col.name }}</span>
+    <div class="nebula-main-card glass-panel">
+      <h1 class="nebula-title">任务控制台</h1>
+
+
+      <div class="nebula-input-wrapper">
+        <span class="material-icons input-icon">add_task</span>
+        <input type="text" class="nebula-input" v-model="newTask.title" placeholder="有什么新计划？" @keyup.enter="handleAddTask" autofocus />
+        <button class="btn-nebula-primary btn-add" @click="handleAddTask" :disabled="!newTask.title.trim()">添加</button>
+        <div class="focus-line"></div>
+      </div>
+
+
+      <div class="nebula-controls">
+        <div class="nebula-tabs">
+          <button class="nebula-tab" :class="{ active: currentFilter === 'all' }" @click="currentFilter = 'all'">全部 <span>{{ totalCount }}</span></button>
+          <button class="nebula-tab" :class="{ active: currentFilter === 'incomplete' }" @click="currentFilter = 'incomplete'">未完成 <span>{{ incompleteCount }}</span></button>
+          <button class="nebula-tab" :class="{ active: currentFilter === 'complete' }" @click="currentFilter = 'complete'">已完成 <span>{{ completedCount }}</span></button>
         </div>
+        <button class="btn-nebula-sort" :class="{ 'is-active': isSortByPriority }" @click="isSortByPriority = !isSortByPriority">
+          <span class="material-icons sort-icon">{{ isSortByPriority ? 'done_all' : 'sort' }}</span> 优先级排序
+        </button>
+      </div>
 
-        <div class="task-container">
-          <div
-              v-for="(task, index) in col.tasks"
-              :key="task.id"
-              :class="['vibe-task-card', { 'completed': task.completed }, `border-${task.priority}`]"
-              style="animation: fadeUp 0.4s ease;"
-          >
-            <div class="card-top">
-              <div class="card-badges">
-                <span :class="`badge-vibe badge-priority-${task.priority}`">
-                  <span class="material-icons badge-icon">{{ priorityIcons[task.priority] }}</span>
-                  {{ task.priority }}
-                </span>
-                <span class="badge-vibe badge-tag">
-                  <span class="material-icons badge-icon">{{ tagIcons[task.tag] }}</span>
-                  {{ task.tag }}
-                </span>
+
+      <div class="nebula-task-list">
+        <transition-group name="list" tag="div">
+          <div v-for="task in filteredTasks" :key="task.id" class="nebula-task-row glass-panel-inner" :class="{ 'is-completed': task.completed }">
+            <div class="row-left">
+              <label class="nebula-checkbox-wrapper">
+                <input type="checkbox" class="hide-native-checkbox" :checked="task.completed" @change="toggleTask(task.id)">
+                <div class="custom-checkbox"><span class="material-icons check-icon">done</span></div>
+              </label>
+              <span class="row-title">{{ task.title }}</span>
+            </div>
+            <div class="row-right">
+              <span class="row-time"><span class="material-icons time-icon">{{ task.completed ? 'task_alt' : 'schedule' }}</span> {{ task.completed ? ('完成于 ' + formatExactTime(task.completedTime)) : ('创建于 ' + formatExactTime(task.createdTime)) }}</span>
+              <div class="nebula-select-wrapper" :class="`priority-${task.priority}`">
+                <select v-model="task.priority" @change="handleInlineEdit(task)">
+                  <option value="高">高优先级</option><option value="中">中优先级</option><option value="低">低优先级</option>
+                </select>
+                <span class="material-icons select-arrow">expand_more</span>
               </div>
-              <input type="checkbox" class="vibe-checkbox" :checked="task.completed" @change="toggleTask(task.id)">
-            </div>
-
-            <div class="card-middle">
-              <div class="task-index">{{ index + 1 }}</div>
-              <div class="task-title">{{ task.title }}</div>
-            </div>
-
-            <div class="card-bottom">
-              <span class="task-id">#{{ task.id }}</span>
-              <div class="bottom-right">
-                <span class="task-date">
-                  <span class="material-icons icon-date">calendar_today</span> 今天
-                </span>
-                <button class="btn-more action-detail" @click="openTaskDetail(task)" title="任务详情/备忘">
-                  <span class="material-icons" style="font-size: 18px;">edit_document</span>
-                </button>
-                <button class="btn-more action-delete" @click="deleteTask(task.id)" title="删除任务">
-                  <span class="material-icons" style="font-size: 18px;">delete_outline</span>
-                </button>
+              <div class="nebula-select-wrapper tag-wrapper">
+                <select v-model="task.tag" @change="handleInlineEdit(task)">
+                  <option value="学习">学习</option><option value="生活">生活</option><option value="兼职">兼职</option>
+                </select>
+                <span class="material-icons select-arrow">expand_more</span>
+              </div>
+              <div class="row-actions">
+                <button class="nebula-icon-btn action-info" @click="openTaskDetail(task)" title="详情"><span class="material-icons">info</span></button>
+                <button class="nebula-icon-btn action-danger" @click.stop="triggerDeleteTask(task.id)" title="删除"><span class="material-icons">delete</span></button>
               </div>
             </div>
           </div>
-        </div>
+        </transition-group>
       </div>
     </div>
+
 
     <transition name="modal-fade">
-      <div class="vibe-modal-overlay" v-if="showDetailModal" @click.self="closeDetailModal">
-        <div class="vibe-modal-content glass-effect">
+      <div class="nebula-modal-overlay" v-if="showDetailModal" @click.self="closeDetailModal">
+        <div class="nebula-modal-content glass-panel">
           <div class="modal-header">
-            <h2><span class="material-icons title-icon">auto_awesome</span> 任务详情</h2>
-            <button class="btn-icon" @click="closeDetailModal"><span class="material-icons">close</span></button>
+            <h2>任务中枢</h2>
+            <button class="btn-close" @click="closeDetailModal"><span class="material-icons">close</span></button>
           </div>
-
           <div class="modal-body" v-if="currentTask">
-            <div class="detail-row">
-              <span class="detail-label">任务名称</span>
-              <span class="detail-value task-title-large">{{ currentTask.title }}</span>
+            <div class="detail-grid">
+              <div class="detail-item"><span class="label">全息标识</span><span class="value text-glow">{{ currentTask.title }}</span></div>
+              <div class="detail-item"><span class="label">节点状态</span><span class="value" :class="currentTask.completed ? 'text-success' : 'text-accent'">{{ currentTask.completed ? '✅ 已归档' : '⏳ 激活中' }}</span></div>
+              <div class="detail-item"><span class="label">优先级量级</span><span class="value">{{ currentTask.priority }}</span></div>
+              <div class="detail-item"><span class="label">象限归属</span><span class="value">{{ currentTask.tag }}</span></div>
+              <div class="detail-item full-width"><span class="label">时间戳记</span><span class="value">{{ formatExactTime(currentTask.createdTime) }}</span></div>
             </div>
-            <div class="detail-row">
-              <span class="detail-label">核心属性</span>
-              <div class="card-badges">
-                <span :class="`badge-vibe badge-priority-${currentTask.priority}`">{{ currentTask.priority }}优先级</span>
-                <span class="badge-vibe badge-tag">{{ currentTask.tag }}</span>
-                <span class="badge-vibe" :style="{ background: currentTask.completed ? '#D1FAE5' : '#FEF3C7', color: currentTask.completed ? '#065F46' : '#92400E' }">
-                  {{ currentTask.completed ? '已完成' : '进行中' }}
-                </span>
+            <div class="memo-area">
+              <label class="label">描述备忘录</label>
+              <div class="nebula-textarea-wrapper">
+                <textarea v-model="currentTask.memo" class="nebula-textarea" placeholder="输入节点详细特征..."></textarea>
+                <div class="focus-line"></div>
               </div>
             </div>
-
-            <div class="memo-section">
-              <label class="detail-label">任务备忘 / 笔记区</label>
-              <textarea
-                  v-model="currentTask.memo"
-                  class="memo-input"
-                  placeholder="在这里写下你的思路、待办步骤或灵感..."
-              ></textarea>
-            </div>
           </div>
-
           <div class="modal-footer">
-            <button class="btn-pill btn-outline" @click="closeDetailModal">关闭</button>
-            <button class="btn-pill btn-ai" @click="saveDetailModal">保存备忘录</button>
+            <button class="btn-nebula-outline" @click="closeDetailModal">取消同步</button>
+            <button class="btn-nebula-primary" @click="saveDetailModal">保存数据</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+
+    <transition name="modal-fade">
+      <div class="nebula-modal-overlay" v-if="deleteTaskConfirm.show" @click.self="deleteTaskConfirm.show = false">
+        <div class="nebula-modal-content glass-panel modal-mini">
+          <div class="warning-icon-wrapper"><span class="material-icons text-danger">warning_amber</span></div>
+          <h2 class="text-center">抹除该节点？</h2>
+          <p class="text-center text-sub">此操作将永久抹除宇宙网络中的该任务数据，无法回溯。</p>
+          <div class="modal-footer justify-center">
+            <button class="btn-nebula-outline" @click="deleteTaskConfirm.show = false">中止</button>
+            <button class="btn-nebula-danger" @click="executeDeleteTask">确认抹除</button>
           </div>
         </div>
       </div>
@@ -164,765 +135,281 @@
   </div>
 </template>
 
+
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import request from '../utils/request';
-// 确保样式文件被引入
 import '../assets/style.css';
+
 
 const router = useRouter();
 const tasks = ref([]);
 const isDark = ref(false);
 
-const newTask = ref({
-  title: '',
-  priority: '中',
-  tag: '学习'
-});
 
-const priorityIcons = { "高": "error", "中": "warning", "低": "check_circle" };
-const tagIcons = { "学习": "school", "生活": "home", "兼职": "work" };
+const toast = ref({ show: false, message: '', type: 'success' });
+let toastTimer = null;
+const showToast = (message, type = 'success') => {
+  if (toastTimer) clearTimeout(toastTimer);
+  toast.value = { show: true, message, type };
+  toastTimer = setTimeout(() => { toast.value.show = false; }, 2200);
+};
+
+
+const formatExactTime = (dateStr) => {
+  if (!dateStr) return '暂无记录';
+  const safeDateStr = typeof dateStr === 'string' ? dateStr.replace(' ', 'T') : dateStr;
+  const d = new Date(safeDateStr);
+  if (isNaN(d.getTime())) return '解析异常';
+  const year = d.getFullYear(), month = d.getMonth() + 1, day = d.getDate(), hour = String(d.getHours()).padStart(2, '0'), min = String(d.getMinutes()).padStart(2, '0');
+  return `${year}年${month}月${day}日 ${hour}:${min}`;
+};
+
+
+const isSortByPriority = ref(false);
+const currentFilter = ref('all');
 const priorityWeight = { "高": 3, "中": 2, "低": 1 };
+const newTask = ref({ title: '', priority: '中', tag: '学习' });
 
-const currentDate = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
 
 const totalCount = computed(() => tasks.value.length);
 const completedCount = computed(() => tasks.value.filter(t => t.completed).length);
-// --- 新增：任务详情与备忘录逻辑 ---
+const incompleteCount = computed(() => tasks.value.filter(t => !t.completed).length);
+
+
 const showDetailModal = ref(false);
 const currentTask = ref(null);
+const deleteTaskConfirm = ref({ show: false, id: null });
 
-const openTaskDetail = (task) => {
-  // 关键：如果后端返回的是 null，我们给它一个空字符串，防止输入框报错
-  currentTask.value = {
-    ...task,
-    memo: task.memo || ''
-  };
-  showDetailModal.value = true;
-};
 
-const closeDetailModal = () => {
-  showDetailModal.value = false;
-  currentTask.value = null;
-};
-
-const saveDetailModal = async () => {
-  if (!currentTask.value) return;
-
-  try {
-    // 调用你刚刚在后端写好的 RESTful 接口
-    // 路径：/api/tasks/{id}/memo
-    await request.put(`/api/tasks/${currentTask.value.id}/memo`, {
-      memo: currentTask.value.memo
-    });
-
-    // 提示成功（可以使用你之前封装的 showToast，如果没有就用普通的）
-    alert("备忘录已成功同步至云端数据库！");
-
-    // 关闭弹窗
-    showDetailModal.value = false;
-
-    // 刷新列表，确保页面上的数据是最新的
-    fetchTasks();
-  } catch (error) {
-    console.error("保存备忘录失败:", error);
-    alert("保存失败，请检查后端服务是否启动");
-  }
-};
-
-const sortedTasks = computed(() => {
-  return [...tasks.value].sort((a, b) => {
-    if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
-      return priorityWeight[b.priority] - priorityWeight[a.priority];
-    }
-    return b.id - a.id;
+const filteredTasks = computed(() => {
+  let result = [...tasks.value];
+  if (currentFilter.value === 'incomplete') result = result.filter(t => !t.completed);
+  else if (currentFilter.value === 'complete') result = result.filter(t => t.completed);
+  return result.sort((a, b) => {
+    if (isSortByPriority.value && priorityWeight[a.priority] !== priorityWeight[b.priority]) return priorityWeight[b.priority] - priorityWeight[a.priority];
+    const safeTimeA = typeof a.createdTime === 'string' ? a.createdTime.replace(' ', 'T') : a.createdTime;
+    const safeTimeB = typeof b.createdTime === 'string' ? b.createdTime.replace(' ', 'T') : b.createdTime;
+    const timeA = new Date(safeTimeA || 0).getTime(), timeB = new Date(safeTimeB || 0).getTime();
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
   });
 });
 
-const boardColumns = computed(() => [
-  { name: '学习', icon: 'school', tasks: sortedTasks.value.filter(t => t.tag === '学习') },
-  { name: '生活', icon: 'home', tasks: sortedTasks.value.filter(t => t.tag === '生活') },
-  { name: '兼职', icon: 'work', tasks: sortedTasks.value.filter(t => t.tag === '兼职') }
-]);
 
-// 1. 获取任务
 const fetchTasks = async () => {
   document.body.style.cursor = "progress";
-  try {
-    tasks.value = await request.get('/api/tasks');
-  } catch (error) {
-    console.error("获取任务失败", error);
-  } finally {
-    document.body.style.cursor = "default";
-  }
+  try { tasks.value = await request.get('/api/tasks'); }
+  catch (error) { console.error("获取任务失败", error); }
+  finally { document.body.style.cursor = "default"; }
 };
 
-// 2. 添加任务（含你原有的缩放微交互动画）
+
 const handleAddTask = async () => {
   if (!newTask.value.title.trim()) return;
   try {
     await request.post('/api/tasks', newTask.value);
-
-    // 保留你原有的 DOM 缩放动画逻辑
-    const input = document.querySelector('input[type="text"]');
-    if(input) {
-      input.style.transform = "scale(1.05)";
-      setTimeout(() => input.style.transform = "scale(1)", 150);
-    }
-
-    newTask.value.title = '';
-    fetchTasks();
-  } catch (error) {
-    alert("提交失败");
-  }
+    newTask.value.title = ''; fetchTasks();
+  } catch (error) { showToast('添加失败', 'error'); }
 };
 
-// 3. 切换状态
+
 const toggleTask = async (id) => {
+  try { await request.put(`/api/tasks/${id}`); fetchTasks(); }
+  catch (error) { showToast("状态更新失败", "error"); }
+};
+
+
+const handleInlineEdit = async (task) => {
   try {
-    await request.put(`/api/tasks/${id}`);
-    fetchTasks();
+    await request.put(`/api/tasks/${task.id}/core`, { title: task.title, priority: task.priority, tag: task.tag });
+    showToast('属性已更新', 'success');
   } catch (error) {
-    console.error("更新失败", error);
+    showToast('更新失败，正在回滚', 'error'); fetchTasks();
   }
 };
 
-// 4. 删除任务
-const deleteTask = async (id) => {
-  if (!confirm("确定删除该任务？")) return;
+
+const triggerDeleteTask = (id) => { deleteTaskConfirm.value = { show: true, id }; };
+const executeDeleteTask = async () => {
   try {
-    await request.delete(`/api/tasks/${id}`);
-    fetchTasks();
-  } catch (error) {
-    console.error("删除失败", error);
-  }
+    await request.delete(`/api/tasks/${deleteTaskConfirm.value.id}`);
+    deleteTaskConfirm.value.show = false; fetchTasks(); showToast('任务已成功抹除', 'success');
+  } catch (error) { showToast('抹除失败', 'error'); }
 };
 
-// 5. 登出逻辑
-const handleLogout = () => {
-  localStorage.removeItem('token');
-  router.push('/login');
+
+const openTaskDetail = (task) => { currentTask.value = { ...task, memo: task.memo || '' }; showDetailModal.value = true; };
+const closeDetailModal = () => { showDetailModal.value = false; currentTask.value = null; };
+const saveDetailModal = async () => {
+  if (!currentTask.value) return;
+  try {
+    await request.put(`/api/tasks/${currentTask.value.id}/memo`, { memo: currentTask.value.memo });
+    showToast('备忘录已同步', 'success'); closeDetailModal(); fetchTasks();
+  } catch (error) { showToast('同步失败', 'error'); }
 };
 
-// 6. 主题切换
+
+const handleLogout = () => { localStorage.removeItem('token'); router.push('/login'); };
 const toggleTheme = () => {
   isDark.value = !isDark.value;
-  if (isDark.value) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    localStorage.setItem('theme', 'dark');
-  } else {
-    document.documentElement.removeAttribute('data-theme');
-    localStorage.setItem('theme', 'light');
-  }
+  if (isDark.value) { document.documentElement.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); }
+  else { document.documentElement.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); }
 };
 
-onMounted(() => {
-  // 初始化主题
-  if (localStorage.getItem('theme') === 'dark') {
-    isDark.value = true;
-    document.documentElement.setAttribute('data-theme', 'dark');
+
+// Canvas 粒子系统逻辑 (Nebula 规范核心)
+let animationFrameId;
+const initParticles = () => {
+  const canvas = document.getElementById('nebula-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const particles = [];
+  let w = canvas.width = window.innerWidth;
+  let h = canvas.height = window.innerHeight;
+  let mouse = { x: null, y: null };
+  window.addEventListener('resize', () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; });
+  window.addEventListener('mousemove', (e) => { mouse.x = e.x; mouse.y = e.y; });
+  window.addEventListener('mouseout', () => { mouse.x = null; mouse.y = null; });
+
+
+  for (let i = 0; i < 75; i++) {
+    particles.push({
+      x: Math.random() * w, y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.8, vy: (Math.random() - 0.5) * 0.8,
+      r: Math.random() * 1.5 + 0.5,
+      baseAlpha: Math.random() * 0.5 + 0.2, phase: Math.random() * Math.PI * 2
+    });
   }
-  fetchTasks();
+
+
+  const draw = () => {
+    ctx.clearRect(0, 0, w, h);
+    for (let i = 0; i < particles.length; i++) {
+      let p = particles[i];
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0 || p.x > w) p.vx *= -1;
+      if (p.y < 0 || p.y > h) p.vy *= -1;
+      if (mouse.x) {
+        let dx = mouse.x - p.x, dy = mouse.y - p.y, dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 150) { p.x += dx * 0.005; p.y += dy * 0.005; }
+      }
+      p.phase += 0.02;
+      let alpha = p.baseAlpha + Math.sin(p.phase) * 0.2;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180, 170, 220, ${alpha})`; ctx.fill();
+      for (let j = i + 1; j < particles.length; j++) {
+        let p2 = particles[j], dx = p.x - p2.x, dy = p.y - p2.y, dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 130) {
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = `rgba(180, 170, 220, ${0.15 - dist / 130 * 0.15})`; ctx.stroke();
+        }
+      }
+    }
+    animationFrameId = requestAnimationFrame(draw);
+  };
+  draw();
+};
+
+
+onMounted(() => {
+  if (localStorage.getItem('theme') === 'dark') { isDark.value = true; document.documentElement.setAttribute('data-theme', 'dark'); }
+  fetchTasks(); initParticles();
 });
+onUnmounted(() => { if (animationFrameId) cancelAnimationFrame(animationFrameId); });
 </script>
 
+
 <style scoped>
-/* ========================
-   第一步：全局氛围与 Header 重塑
-   ======================== */
-
-/* 覆盖全局容器，注入薄荷绿呼吸感渐变背景 */
-.app-container {
-  min-height: 100vh;
-  max-width: 100% !important; /* 突破原有的宽度限制 */
-  margin: 0;
-  padding: 40px 60px;
-  background: linear-gradient(135deg, #F0FDF4 0%, #F8FAFC 100%);
-  /* 添加极其柔和的径向渐变光晕，模拟设计图的通透感 */
-  background-image: radial-gradient(at 0% 50%, rgba(209, 250, 229, 0.5) 0, transparent 50%),
-  radial-gradient(at 100% 100%, rgba(224, 242, 254, 0.4) 0, transparent 50%);
-  font-family: system-ui, -apple-system, sans-serif;
-  box-sizing: border-box;
-}
-
-/* Header 布局优化 */
-.vibe-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto 32px auto; /* 居中对齐 */
-}
-
-/* 标题区排版 */
-.header-left h1 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
-  margin: 0 0 8px 0;
-  letter-spacing: 0.5px;
-}
-
-.title-icon {
-  color: #34D399; /* 设计图中的薄荷绿主色 */
-  font-size: 26px;
-}
-
-.current-date {
-  color: #10B981; /* 稍深的绿色，保证可读性 */
-  font-size: 13px;
-  font-weight: 500;
-  margin: 0;
-  padding-left: 34px; /* 故意缩进，与上面的文字左对齐 */
-}
-
-/* 按钮区排版 */
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-/* 终极胶囊按钮基础样式 (Pill-shape) */
-.btn-pill {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 22px;
-  border-radius: 999px; /* 实现完美的半圆胶囊效果 */
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.btn-pill:hover {
-  transform: translateY(-2px);
-}
-
-/* AI 绿按钮 */
-.btn-ai {
-  background: #34D399;
-  color: white;
-}
-.btn-ai:hover {
-  background: #10B981;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
-/* 白色线框按钮 (登出) */
-.btn-outline {
-  background: #ffffff;
-  color: #374151;
-}
-.btn-outline:hover {
-  background: #F9FAFB;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-}
-
-/* 圆形图标按钮 (暗色模式) */
-.btn-icon {
-  background: #ffffff;
-  color: #374151;
-  padding: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%; /* 正圆 */
-}
-.btn-icon:hover {
-  background: #F9FAFB;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-}
-
-.icon-sm {
-  font-size: 16px;
-}
-
-/* ========================
-   第二步：超集成悬浮输入舱
-   ======================== */
-
-.vibe-input-cabin {
-  display: flex;
-  align-items: center;
-  max-width: 1100px;
-  margin: 0 auto 40px auto;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  padding: 8px 10px 8px 24px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
-  gap: 12px;
-}
-
-/* 内部组合样式 */
-.input-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 48px;
-}
-
-.main-input {
-  flex: 1; /* 让输入框占据主要空间 */
-}
-
-.group-icon {
-  color: #10B981;
-  font-size: 22px;
-}
-
-/* 输入框本体 */
-.main-input input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  font-size: 16px;
-  color: #1F2937;
-  outline: none;
-}
-
-.main-input input::placeholder {
-  color: #9CA3AF;
-}
-
-/* 下拉选择组合 */
-.select-group {
-  background: #F8FAFC;
-  padding: 0 12px 0 16px;
-  border-radius: 12px;
-  border: 1px solid #F1F5F9;
-  position: relative;
-  transition: all 0.3s ease;
-}
-
-.select-group:hover {
-  background: #F1F5F9;
-  border-color: #E2E8F0;
-}
-
-.select-group select {
-  appearance: none;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 14px;
-  font-weight: 600;
-  color: #4B5563;
-  padding-right: 24px;
-  cursor: pointer;
-  z-index: 1;
-}
-
-.dropdown-arrow {
-  position: absolute;
-  right: 8px;
-  color: #94A3B8;
-  pointer-events: none;
-  font-size: 20px;
-}
-
-/* 特殊图标颜色 */
-.icon-bolt { color: #64748B; }
-.icon-bag { color: #64748B; }
-
-/* 渐变添加按钮 */
-.btn-add-task {
-  background: linear-gradient(135deg, #34D399, #10B981);
-  color: white;
-  border: none;
-  padding: 0 24px;
-  height: 48px;
-  border-radius: 14px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-}
-
-.btn-add-task:hover {
-  transform: scale(1.02);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
-}
-
-.btn-add-task:active {
-  transform: scale(0.98);
-}
-
-/* ========================
-   第三步：看板与卡片深度还原
-   ======================== */
-
-/* 统计栏样式 */
-.vibe-stats-bar {
-  max-width: 1100px;
-  margin: 0 auto 16px auto;
-  display: flex;
-  justify-content: space-between;
-  padding: 0 8px;
-}
-
-.stat-item {
-  color: #6B7280;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.stat-num {
-  color: #10B981;
-  font-weight: 700;
-  font-size: 16px;
-  margin-left: 4px;
-}
-
-/* 看板整体网格 */
-.vibe-task-board {
-  max-width: 1100px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-}
-
-/* 列容器：圆角白底 */
-.vibe-board-column {
-  background: #ffffff;
-  border-radius: 24px;
-  padding: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
-  display: flex;
-  flex-direction: column;
-}
-
-/* 列头部 */
-.column-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.column-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.column-icon {
-  color: #34D399;
-  font-size: 24px;
-}
-
-.column-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: #111827;
-  letter-spacing: 0.5px;
-}
-
-.btn-col-add {
-  background: #ECFDF5;
-  color: #10B981;
-  border: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.btn-col-add:hover { background: #D1FAE5; }
-
-/* --- 核心：任务卡片 --- */
-.vibe-task-card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 16px;
-  border: 1px solid #F3F4F6;
-  border-left-width: 4px;
-  border-left-style: solid;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.vibe-task-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
-}
-
-.vibe-task-card.completed {
-  opacity: 0.6;
-  filter: grayscale(0.8);
-}
-
-/* 左侧优先级边条颜色 */
-.border-高 { border-left-color: #EF4444; }
-.border-中 { border-left-color: #F59E0B; }
-.border-低 { border-left-color: #10B981; }
-
-/* 卡片内部结构 */
-.card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.card-badges {
-  display: flex;
-  gap: 8px;
-}
-
-.badge-vibe {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.badge-icon { font-size: 14px; }
-
-/* 徽章配色体系 */
-.badge-priority-高 { background: #FEF2F2; color: #DC2626; }
-.badge-priority-中 { background: #FFFBEB; color: #D97706; }
-.badge-priority-低 { background: #ECFDF5; color: #059669; }
-.badge-tag { background: #F5F3FF; color: #7C3AED; } /* 原图中的紫色系标签 */
-
-/* 复选框定制 */
-.vibe-checkbox {
-  width: 20px;
-  height: 20px;
-  accent-color: #34D399;
-  cursor: pointer;
-  border-radius: 6px;
-}
-
-/* 中部：大序号与标题 */
-.card-middle {
-  margin-bottom: 24px;
-}
-
-.task-index {
-  font-size: 20px;
-  font-weight: 800;
-  color: #111827;
-  margin-bottom: 6px;
-  line-height: 1;
-}
-
-.task-title {
-  font-size: 14px;
-  color: #4B5563;
-  line-height: 1.5;
-  font-weight: 500;
-}
-
-/* 底部：辅助信息 */
-.card-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 12px;
-  border-top: 1px dashed #F3F4F6;
-}
-
-.task-id {
-  color: #9CA3AF;
-  font-size: 13px;
-  font-family: ui-monospace, monospace;
-}
-
-.bottom-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.task-date {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #10B981;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.icon-date { font-size: 14px; }
-
-/* 隐藏在三个点里的删除按钮 */
-.btn-more {
-  background: transparent;
-  border: none;
-  color: #9CA3AF;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-.btn-more:hover {
-  background: #FEE2E2;
-  color: #EF4444; /* 悬浮时变红，暗示删除操作 */
-}
-
-/* 列底部的查看全部 */
-.column-footer {
-  text-align: center;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #F3F4F6;
-  color: #10B981;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.column-footer:hover { opacity: 0.7; }
-
-/* ========================
-   最新修正：居中、精简与弹窗
-   ======================== */
-
-/* 列标题绝对居中 */
-.column-header-centered {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 24px;
-  width: 100%;
-}
-
-/* 操作按钮交互优化 */
-.action-detail { color: #60A5FA; }
-.action-detail:hover { background: #EFF6FF; color: #3B82F6; }
-
-.action-delete { color: #9CA3AF; }
-.action-delete:hover { background: #FEF2F2; color: #EF4444; }
-
-/* --- 任务详情弹窗 (Glassmorphism Modal) --- */
-.vibe-modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(17, 24, 39, 0.4);
-  backdrop-filter: blur(8px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
-
-.vibe-modal-content {
-  background: rgba(255, 255, 255, 0.95);
-  width: 100%;
-  max-width: 500px;
-  border-radius: 24px;
-  padding: 32px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255,255,255,1);
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #F3F4F6;
-  padding-bottom: 16px;
-}
-
-.modal-header h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 20px;
-  color: #111827;
-}
-
-.detail-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.detail-label {
-  font-size: 13px;
-  color: #9CA3AF;
-  font-weight: 600;
-}
-
-.task-title-large {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1F2937;
-  line-height: 1.4;
-}
-
-.memo-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.memo-input {
-  width: 100%;
-  height: 150px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  padding: 16px;
-  font-size: 14px;
-  color: #374151;
-  resize: none;
-  outline: none;
-  transition: all 0.2s;
-  box-sizing: border-box;
-}
-
-.memo-input:focus {
-  background: #FFFFFF;
-  border-color: #34D399;
-  box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.1);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid #F3F4F6;
-}
-
-/* 弹窗淡入淡出动画 */
-.modal-fade-enter-active, .modal-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-.modal-fade-enter-from, .modal-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.95) translateY(10px);
-}
+/* 深度压缩的 Nebula CSS */
+.nebula-app{min-height:100vh;background:#06060f;font-family:'Inter','SF Pro Display',system-ui,sans-serif;padding:60px 20px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;position:relative;overflow-x:hidden;color:#e8e8f0;}
+.nebula-particles{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none;}
+.nebula-halos{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+.halo{position:absolute;border-radius:50%;filter:blur(120px);opacity:0.5;animation:float 15s ease-in-out infinite;}
+.halo-1{width:400px;height:400px;background:radial-gradient(circle,#7c6ff7,transparent);top:-10%;left:10%;}
+.halo-2{width:500px;height:500px;background:radial-gradient(circle,#4c3fc4,transparent);bottom:-20%;right:-5%;animation-delay:-5s;}
+.halo-3{width:350px;height:350px;background:radial-gradient(circle,#a99df9,transparent);top:40%;left:50%;animation-delay:-10s;}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(30px,-50px) scale(1.1);}}
+.glass-panel{background:rgba(18,18,36,0.65);backdrop-filter:blur(40px) saturate(140%);border:1px solid rgba(255,255,255,0.08);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1),0 8px 32px rgba(0,0,0,0.4);border-radius:20px;position:relative;z-index:1;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);}
+.glass-panel:hover{border-color:rgba(255,255,255,0.12);box-shadow:inset 0 1px 0 rgba(255,255,255,0.15),0 12px 40px rgba(124,111,247,0.15);}
+.glass-panel-inner{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);border-radius:16px;}
+.nebula-nav-bar{position:absolute;top:24px;right:40px;display:flex;align-items:center;gap:16px;padding:8px 20px;border-radius:50px;}
+.nav-btn,.nav-icon-btn{background:transparent;border:none;font-size:0.9rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:color 0.3s;}
+.text-accent{color:#a99df9;}.text-weak{color:#6b6b85;}
+.nav-btn:hover,.nav-icon-btn:hover{color:#e8e8f0;}.nav-divider{width:1px;height:14px;background:rgba(255,255,255,0.1);}
+.nebula-main-card{width:100%;max-width:850px;padding:40px;animation:cardIn 0.7s cubic-bezier(0.4,0,0.2,1) forwards;}
+@keyframes cardIn{from{opacity:0;transform:translateY(30px) scale(0.96);}to{opacity:1;transform:translateY(0) scale(1);}}
+.nebula-title{text-align:center;font-size:1.65rem;font-weight:700;letter-spacing:-0.02em;margin:0 0 32px 0;color:#e8e8f0;}
+.nebula-input-wrapper, .nebula-textarea-wrapper{position:relative;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;display:flex;align-items:center;padding:8px;transition:all 0.3s;overflow:hidden;margin-bottom:24px;}
+.nebula-input-wrapper:focus-within,.nebula-textarea-wrapper:focus-within{background:rgba(18,18,36,0.8);border-color:transparent;box-shadow:none;}
+.input-icon{position:absolute;left:16px;color:#6b6b85;font-size:20px;transition:color 0.3s;}
+.nebula-input-wrapper:focus-within .input-icon{color:#a99df9;}.nebula-input{flex:1;background:transparent;border:none;color:#e8e8f0;font-size:0.95rem;padding:10px 10px 10px 44px;outline:none;}
+.nebula-input::placeholder,.nebula-textarea::placeholder{color:#6b6b85;transition:all 0.3s;}
+.nebula-input:focus::placeholder{opacity:0.5;transform:translateX(4px);}
+.focus-line{position:absolute;bottom:0;left:0;height:2px;width:100%;background:linear-gradient(90deg,#7c6ff7,#a99df9,#7c6ff7);transform:scaleX(0);transform-origin:left;transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);}
+.nebula-input-wrapper:focus-within .focus-line,.nebula-textarea-wrapper:focus-within .focus-line{transform:scaleX(1);}
+.btn-nebula-primary{background:linear-gradient(135deg,#7c6ff7,#5b4fcf,#4c3fc4);color:#fff;border:none;border-radius:10px;padding:10px 24px;font-weight:600;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;}
+.btn-add{padding:10px 20px;border-radius:8px;}
+.btn-nebula-primary::before{content:'';position:absolute;top:0;left:-100%;width:50%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);transition:left 0.5s;}
+.btn-nebula-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(124,111,247,0.4);}
+.btn-nebula-primary:hover::before{left:150%;}.btn-nebula-primary:active{transform:scale(0.98);}
+.nebula-controls{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:16px;}
+.nebula-tabs{display:flex;background:rgba(255,255,255,0.04);padding:4px;border-radius:14px;border:1px solid rgba(255,255,255,0.05);}
+.nebula-tab{background:transparent;border:none;color:#9898b4;padding:8px 20px;border-radius:10px;font-size:0.9rem;font-weight:600;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;gap:6px;}
+.nebula-tab span{background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:20px;font-size:0.8rem;}
+.nebula-tab.active{background:rgba(255,255,255,0.1);color:#e8e8f0;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+.nebula-tab.active span{background:#7c6ff7;color:#fff;}
+.btn-nebula-sort{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#9898b4;padding:8px 16px;border-radius:12px;font-size:0.9rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.3s;}
+.btn-nebula-sort:hover{background:rgba(255,255,255,0.08);color:#e8e8f0;}
+.btn-nebula-sort.is-active{background:rgba(124,111,247,0.15);border-color:#7c6ff7;color:#a99df9;box-shadow:0 4px 12px rgba(124,111,247,0.2);}
+.nebula-task-row{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;margin-bottom:12px;transition:all 0.3s;}
+.nebula-task-row:hover{background:rgba(255,255,255,0.06);transform:translateX(4px);}
+.row-left{display:flex;align-items:center;gap:16px;flex:1;min-width:0;}
+.nebula-checkbox-wrapper{position:relative;width:20px;height:20px;display:inline-block;cursor:pointer;}
+.hide-native-checkbox{opacity:0;width:0;height:0;position:absolute;}
+.custom-checkbox{width:20px;height:20px;border:1.5px solid rgba(255,255,255,0.2);border-radius:6px;background:rgba(0,0,0,0.2);transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);display:flex;justify-content:center;align-items:center;}
+.hide-native-checkbox:focus+.custom-checkbox{outline:2px solid rgba(169,157,249,0.5);outline-offset:2px;}
+.hide-native-checkbox:checked+.custom-checkbox{background:#7c6ff7;border-color:#7c6ff7;}
+.check-icon{font-size:14px;color:#fff;opacity:0;transform:scale(0.5) rotate(-20deg);transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);}
+.hide-native-checkbox:checked+.custom-checkbox .check-icon{opacity:1;transform:scale(1) rotate(0deg);}
+.row-title{font-size:0.95rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 0.3s;}
+.is-completed .row-title{color:#6b6b85;text-decoration:line-through;text-decoration-color:rgba(255,255,255,0.2);}.row-right{display:flex;align-items:center;gap:16px;flex-shrink:0;}
+.row-time{font-size:0.8rem;color:#6b6b85;display:flex;align-items:center;gap:4px;font-family:monospace;}
+.time-icon{font-size:14px;}
+.nebula-select-wrapper{position:relative;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:2px 4px;transition:all 0.3s;}
+.nebula-select-wrapper:hover{background:rgba(255,255,255,0.1);box-shadow:0 0 12px rgba(255,255,255,0.05);}
+.nebula-select-wrapper select{appearance:none;background:transparent;border:none;color:#e8e8f0;font-size:0.8rem;font-weight:600;padding:4px 24px 4px 8px;cursor:pointer;outline:none;}
+.nebula-select-wrapper select option{background:#121224;color:#e8e8f0;}
+.select-arrow{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:14px;color:#9898b4;pointer-events:none;}.priority-高{background:rgba(245,108,108,0.15);border-color:rgba(245,108,108,0.3);}
+.priority-高 select{color:#f56c6c;}.priority-中{background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.3);}
+.priority-中 select{color:#f59e0b;}
+.row-actions{display:flex;gap:4px;}
+.nebula-icon-btn{background:transparent;border:none;color:#6b6b85;padding:6px;border-radius:8px;cursor:pointer;transition:all 0.2s;}
+.nebula-icon-btn:hover{background:rgba(255,255,255,0.1);color:#e8e8f0;}
+.action-danger:hover{background:rgba(245,108,108,0.15);color:#f56c6c;}
+.nebula-toast{position:fixed;top:28px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:50px;background:rgba(18,18,36,0.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:8px;font-size:0.9rem;font-weight:600;z-index:9999;box-shadow:0 10px 30px rgba(0,0,0,0.5);}.toast-success{border-color:rgba(74,222,128,0.5);box-shadow:0 0 20px rgba(74,222,128,0.1);}
+.toast-success .toast-icon{color:#4ade80;}.toast-error{border-color:rgba(245,108,108,0.5);box-shadow:0 0 20px rgba(245,108,108,0.1);}
+.toast-error .toast-icon{color:#f56c6c;}.toast-fade-enter-active,.toast-fade-leave-active{transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);}.toast-fade-enter-from,.toast-fade-leave-to{opacity:0;transform:translate(-50%,-120px);}
+.nebula-modal-overlay{position:fixed;inset:0;background:rgba(6,6,15,0.6);backdrop-filter:blur(8px);display:flex;justify-content:center;align-items:center;z-index:9999;}
+.nebula-modal-content{width:100%;max-width:520px;padding:32px;}
+.modal-mini{max-width:400px;text-align:center;}.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;}
+.modal-header h2{margin:0;font-size:1.4rem;font-weight:700;}.btn-close{background:transparent;border:none;color:#6b6b85;cursor:pointer;transition:0.3s;}
+.btn-close:hover{color:#e8e8f0;transform:rotate(90deg);}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;}
+.detail-item{display:flex;flex-direction:column;gap:6px;background:rgba(255,255,255,0.02);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);}
+.full-width{grid-column:1/-1;}.label{font-size:0.8rem;color:#9898b4;text-transform:uppercase;letter-spacing:1px;}.value{font-size:0.95rem;font-weight:600;}
+.text-glow{color:#a99df9;text-shadow:0 0 8px rgba(169,157,249,0.4);}
+.text-success{color:#4ade80;}
+.memo-area{display:flex;flex-direction:column;gap:12px;}
+.nebula-textarea{width:100%;height:120px;background:transparent;border:none;color:#e8e8f0;font-size:0.95rem;resize:none;outline:none;line-height:1.6;}
+.modal-footer{display:flex;justify-content:flex-end;gap:12px;margin-top:32px;}
+.justify-center{justify-content:center;}
+.btn-nebula-outline{background:transparent;border:1px solid rgba(255,255,255,0.15);color:#e8e8f0;border-radius:10px;padding:10px 24px;font-weight:600;cursor:pointer;transition:0.3s;}
+.btn-nebula-outline:hover{background:rgba(255,255,255,0.05);border-color:#a99df9;}
+.btn-nebula-danger{background:linear-gradient(135deg,#f56c6c,#c53030);color:#fff;border:none;border-radius:10px;padding:10px 24px;font-weight:600;cursor:pointer;transition:0.3s;}
+.btn-nebula-danger:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(245,108,108,0.3);}
+.warning-icon-wrapper{width:64px;height:64px;background:rgba(245,108,108,0.1);border-radius:50%;display:flex;justify-content:center;align-items:center;margin:0 auto 20px auto;border:1px solid rgba(245,108,108,0.2);}
+.text-center{text-align:center;}
+.text-sub{color:#9898b4;font-size:0.9rem;margin-bottom:24px;}
+.list-enter-active,.list-leave-active{transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);}.list-enter-from,.list-leave-to{opacity:0;transform:translateX(-30px);}
 </style>

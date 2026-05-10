@@ -49,6 +49,14 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- 引入Lombok库 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.32</version> <!-- 建议使用较新版本 -->
+            <scope>provided</scope>
+        </dependency>
+
     </dependencies>
 
     <repositories>

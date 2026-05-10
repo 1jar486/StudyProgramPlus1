@@ -50,4 +50,14 @@ public class TaskController {
         // 调用 Service 层业务逻辑
         service.updateTaskMemo(id, memo, userId);
     }
+
+    // 新增：前端行内编辑专属接口
+    @PutMapping("/{id}/core")
+    public void updateCoreInfo(@PathVariable int id, @RequestBody Map<String, String> payload, @RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        String title = payload.get("title");
+        String priority = payload.get("priority");
+        String tag = payload.get("tag"); // [新增] 获取前端传来的 tag
+        service.updateTaskCore(id, title, priority, tag, userId);
+    }
 }

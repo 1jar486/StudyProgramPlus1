@@ -134,9 +134,9 @@ input {
 }
 input:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: #7c6ff7; /* 替换为 Nebula 紫罗兰 */
     background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+    box-shadow: 0 0 0 3px rgba(124, 111, 247, 0.2); /* 替换为紫色光晕 */
     transform: scale(1.02);
 }
 #taskInput {
@@ -145,9 +145,11 @@ input:focus {
     border-radius: var(--radius);
     border: 1px solid #E5E7EB;
 }
-#taskInput:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+input:focus {
+    outline: none;
+    border-color: #7c6ff7; /* 替换为 Nebula 紫罗兰 */
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(124, 111, 247, 0.2); /* 替换为紫色光晕 */
     transform: scale(1.02);
 }
 
@@ -174,10 +176,11 @@ select:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
+
 select:focus {
     outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+    border-color: #7c6ff7; /* 替换为 Nebula 紫罗兰 */
+    box-shadow: 0 0 0 3px rgba(124, 111, 247, 0.2); /* 替换为紫色光晕 */
 }
 
 /* 添加按钮 */
@@ -412,4 +415,13 @@ select:focus {
 [data-theme="dark"] .custom-checkbox {
     border: 2px solid var(--text-secondary);
     background: transparent;
+}
+
+/* 新增：绝对禁止内部 input 触发全局的粗边框和背景色 */
+.nebula-input:focus, .nebula-textarea:focus {
+    box-shadow: none !important;
+    background: transparent !important;
+    transform: none !important;
+    border: none !important;
+    outline: none !important;
 }

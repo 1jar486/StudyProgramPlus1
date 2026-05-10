@@ -3,7 +3,7 @@ import axios from 'axios';
 // 创建 axios 实例
 const service = axios.create({
     baseURL: 'http://localhost:9090/start/', // 你的后端基础地址
-    timeout: 5000
+    timeout: 60000
 });
 
 // 请求拦截器：发请求前，如果本地有 Token，就带上

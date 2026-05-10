@@ -30,17 +30,21 @@ public class DocumentController {
         return Long.parseLong(token.replace("SUCCESS_TOKEN_FOR_", ""));
     }
 
-    // 1. 获取我的知识库列表
+    // 1. 获取特定笔记本下的知识库列表
     @GetMapping
-    public List<Document> getAllMyDocuments(@RequestHeader("Authorization") String token) {
+    public List<Document> getAllMyDocuments(
+            @RequestParam Integer notebookId, // 【新增】必须传入笔记本ID
+            @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
-        return documentMapper.findByUserId(userId);
+        // 【修改】调用 DocumentMapper 中新加的按笔记本查询的方法
+        return documentMapper.findByNotebookId(userId, notebookId);
     }
 
     // 2. 接收前端上传的文件
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
             @RequestParam("file") MultipartFile file,
+            @RequestParam("notebookId") Integer notebookId, // 【新增】接收前端传来的笔记本ID
             @RequestHeader("Authorization") String token) {
 
         Long userId = getUserIdFromToken(token);
@@ -59,12 +63,13 @@ public class DocumentController {
 
             // 获取原始文件名并拼接保存路径
             String originalFilename = file.getOriginalFilename();
-            // --- 【新增：重复文件拦截】 ---
+
+            // --- 【重复文件拦截】 ---
             if (documentMapper.countByUserIdAndFileName(userId, originalFilename) > 0) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("文件已存在，请勿重复上传！");
             }
-            // --------------------------
-            String filePath = UPLOAD_DIR + System.currentTimeMillis() + "_" + originalFilename; // 加时间戳防止重名覆盖
+
+            String filePath = UPLOAD_DIR + System.currentTimeMillis() + "_" + originalFilename;
 
             // 将文件真实保存到电脑硬盘上
             File destFile = new File(filePath);
@@ -73,36 +78,27 @@ public class DocumentController {
             // 构建 Document 对象，保存信息到 MySQL 数据库
             Document doc = new Document();
             doc.setUserId(userId);
+            doc.setNotebookId(notebookId); // 【新增】将文档绑定到具体的笔记本
             doc.setFileName(originalFilename);
             doc.setFilePath(filePath);
-            doc.setStatus("PROCESSING"); // 状态设为解析中，等后面交给 Python 处理
-
+            doc.setStatus("PROCESSING");
             documentMapper.insert(doc);
 
-            // 获取刚刚存入数据库的这条记录的 ID
-            final Integer docId = doc.getId();
-
-            // 【关键】开启一个新线程去后台调用 Python，让前端立刻显示“待解析”
+            // 【关键修改】开启新线程去后台调用 Python，并带上 notebook_id
             new Thread(() -> {
-                String pythonUrl = "http://localhost:8000/api/ai/parse";
-                Map<String, String> requestMap = new HashMap<>();
-                requestMap.put("file_path", filePath);
+                // 组装发给 Python FastAPI 的 JSON 数据
+                Map<String, Object> pyRequest = new HashMap<>();
+                pyRequest.put("file_path", filePath);
+                pyRequest.put("notebook_id", notebookId); // 让 Python 知道该存入哪个向量集合
 
                 try {
-                    // 等待 Python 慢慢解析...
-                    restTemplate.postForEntity(pythonUrl, requestMap, String.class);
-                    System.out.println("Python 解析完成，更新数据库: " + filePath);
-
-                    // Python 解析成功后，把数据库状态改成 COMPLETED
-                    documentMapper.updateStatus(docId, "COMPLETED");
+                    restTemplate.postForObject("http://localhost:8000/api/ai/parse", pyRequest, String.class);
                 } catch (Exception e) {
-                    System.err.println("解析失败: " + e.getMessage());
-                    // 如果失败了，标为 FAILED
-                    documentMapper.updateStatus(docId, "FAILED");
+                    e.printStackTrace();
                 }
             }).start();
 
-            return ResponseEntity.ok("文件上传成功，AI 正在后台光速解析...");
+            return ResponseEntity.ok("文件上传成功，专属知识库正在光速解析...");
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -110,20 +106,58 @@ public class DocumentController {
         }
     }
 
-    // 3. 接收 Python 的回执，更新文件解析状态
+    // 替换 DocumentController.java 中的 updateStatus 方法
     @PostMapping("/update-status")
     public ResponseEntity<?> updateStatus(@RequestBody Map<String, String> payload) {
+        // Python 传过来的是 {"file_path": "D:/...", "status": "COMPLETED"}
         String filePath = payload.get("file_path");
-        // 这里简单演示逻辑，实际建议在 Mapper 增加根据路径修改状态的 SQL
-        System.out.println("收到回执，文件解析完成: " + filePath);
-        // documentMapper.updateStatusByPath(filePath, "COMPLETED");
+
+        // 我们假设回执默认就是成功，也可以让 Python 传具体的 status
+        String status = payload.getOrDefault("status", "COMPLETED");
+
+        System.out.println("收到 AI 引擎回执，更新文件状态为完成: " + filePath);
+
+        // 调用 Mapper 更新数据库，这样前端轮询时就能查到 COMPLETED 了
+        documentMapper.updateStatusByPath(filePath, status);
+
         return ResponseEntity.ok("状态已同步");
     }
 
+    // 3. 删除文件（实现 MySQL 与 ChromaDB 的双向销毁）
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteDocument(@PathVariable Integer id, @RequestHeader("Authorization") String token) {
         Long userId = getUserIdFromToken(token);
-        documentMapper.deleteById(id, userId);
-        return ResponseEntity.ok("文件记录已清理");
+
+        // 第一步：先从数据库把这个文件的信息查出来，我们需要它的绝对路径和所在的笔记本ID
+        Document doc = documentMapper.findByIdAndUserId(id, userId);
+
+        if (doc != null) {
+            // 第二步：通知 Python AI 引擎，进行“物理级销毁”
+            new Thread(() -> {
+                Map<String, Object> pyRequest = new HashMap<>();
+                pyRequest.put("file_path", doc.getFilePath()); // 核心锚点：利用文件路径去删向量
+                pyRequest.put("notebook_id", doc.getNotebookId());
+
+                try {
+                    // 调用 Python 新写的销毁接口
+                    restTemplate.postForObject("http://localhost:8000/api/ai/delete", pyRequest, String.class);
+                    // 顺手把本地硬盘里存的那份 PDF/TXT 源文件也删掉，彻底释放空间
+                    java.io.File physicalFile = new java.io.File(doc.getFilePath());
+                    if (physicalFile.exists()) {
+                        physicalFile.delete();
+                    }
+                } catch (Exception e) {
+                    System.err.println("调用 Python 销毁向量失败：" + e.getMessage());
+                }
+            }).start();
+
+            // 第三步：在 MySQL 数据库中抹除它的存在
+            documentMapper.deleteById(id, userId);
+            return ResponseEntity.ok("文件及底层关联向量已彻底清除！");
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("找不到该文件");
+        }
     }
+
+
 }

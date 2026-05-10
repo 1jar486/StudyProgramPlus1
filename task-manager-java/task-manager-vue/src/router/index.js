@@ -2,11 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router';
 import Login from '../views/Login.vue';
 import TaskBoard from '../views/TaskBoard.vue';
 import StudyCopilot from "../views/StudyCopilot.vue";
+import NotebookList from "../views/NotebookList.vue"
 const routes = [
     { path: '/', redirect: '/tasks' },
     { path: '/login', name: 'Login', component: Login },
     { path: '/tasks', name: 'Tasks', component: TaskBoard, meta: { requiresAuth: true } }, // 需要登录才能访问
-    { path: '/copilot', name: 'Copilot', component: StudyCopilot, meta: { requiresAuth: true } } // 新增路由配置
+    { path: '/copilot/:notebookId', name: 'Copilot', component: StudyCopilot, meta: { requiresAuth: true } }, // 新增路由配置
+    { path: '/notebooks', name: 'Notebooks', component: NotebookList, meta: { requiresAuth: true } }
 ];
 
 const router = createRouter({

@@ -5,6 +5,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/StudyProgramPlus1.iml" filepath="$PROJECT_DIR$/.idea/StudyProgramPlus1.iml" />
       <module fileurl="file://$PROJECT_DIR$/task-manager-java/task-manager.iml" filepath="$PROJECT_DIR$/task-manager-java/task-manager.iml" />
       <module fileurl="file://$PROJECT_DIR$/task-manager-ai-py/task-manager-ai-py.iml" filepath="$PROJECT_DIR$/task-manager-ai-py/task-manager-ai-py.iml" />
+      <module fileurl="file://$PROJECT_DIR$/task-manager-pet/task-manager-pet.iml" filepath="$PROJECT_DIR$/task-manager-pet/task-manager-pet.iml" />
     </modules>
   </component>
 </project>

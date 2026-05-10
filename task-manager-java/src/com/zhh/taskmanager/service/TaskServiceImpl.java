@@ -36,4 +36,9 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public void updateTaskMemo(int id, String memo, Long userId) {taskMapper.updateMemo(id, memo, userId);}
+
+    @Override
+    public void updateTaskCore(int id, String title, String priority, String tag, Long userId) {
+        taskMapper.updateCoreInfo(id, title, priority, tag, userId);
+    }
 }

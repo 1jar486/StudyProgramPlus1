@@ -19,7 +19,7 @@ public class AuthController {
     private UserService userService;
 
     // 1. 登录方法：已经确认没问题
-    @PostMapping("/login")
+    @PostMapping("/login") // 接收前端传来的JSON数据
     public ResponseEntity<?> login(@RequestBody User loginUser) {
         User user = userService.login(loginUser.getUsername(), loginUser.getPassword());
         if (user != null) {
