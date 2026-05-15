@@ -1,7 +1,7 @@
 package com.zhh.taskmanager.controller;
 
 import com.zhh.taskmanager.mapper.DocumentMapper;
-import com.zhh.taskmanager.model.Document;
+import com.zhh.taskmanager.Entity.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +13,10 @@ import java.util.Map;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -157,6 +161,37 @@ public class DocumentController {
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("找不到该文件");
         }
+    }
+
+    // 4. 安全预览文件流接口
+    @GetMapping("/{id}/preview")
+    public ResponseEntity<Resource> previewDocument(@PathVariable Integer id, @RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+
+        // 校验文件归属权
+        Document doc = documentMapper.findByIdAndUserId(id, userId);
+        if (doc == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        File file = new File(doc.getFilePath());
+        if (!file.exists()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        // 将物理文件包装为资源
+        Resource resource = new FileSystemResource(file);
+
+        // 判断文件类型，通知浏览器如何渲染
+        String contentType = doc.getFileName().toLowerCase().endsWith(".pdf")
+                ? "application/pdf"
+                : "text/plain;charset=UTF-8";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, contentType)
+                // inline 表示让浏览器尝试直接预览，而不是下载
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + doc.getFileName() + "\"")
+                .body(resource);
     }
 
 

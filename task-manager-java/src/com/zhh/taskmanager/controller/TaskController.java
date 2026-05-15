@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.controller;
 
-import com.zhh.taskmanager.model.Task;
+import com.zhh.taskmanager.Entity.Task;
 import com.zhh.taskmanager.service.TaskService;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;

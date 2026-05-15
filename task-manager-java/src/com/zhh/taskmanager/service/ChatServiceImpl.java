@@ -1,7 +1,7 @@
 package com.zhh.taskmanager.service;
 
 import com.zhh.taskmanager.mapper.ChatMessageMapper;
-import com.zhh.taskmanager.model.ChatMessage;
+import com.zhh.taskmanager.Entity.ChatMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;

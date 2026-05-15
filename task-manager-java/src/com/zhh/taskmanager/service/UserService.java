@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.service;
 
-import com.zhh.taskmanager.model.User;
+import com.zhh.taskmanager.Entity.User;
 
 public interface UserService {
 

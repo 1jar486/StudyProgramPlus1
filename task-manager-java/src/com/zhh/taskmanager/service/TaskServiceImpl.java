@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.service;
 
-import com.zhh.taskmanager.model.Task;
+import com.zhh.taskmanager.Entity.Task;
 import com.zhh.taskmanager.mapper.TaskMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

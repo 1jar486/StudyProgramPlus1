@@ -1,4 +1,4 @@
-package com.zhh.taskmanager.model;
+package com.zhh.taskmanager.Entity;
 import lombok.Data;
 /**
  * 用户实体类

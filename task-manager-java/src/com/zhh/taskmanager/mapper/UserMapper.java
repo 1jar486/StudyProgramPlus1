@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.mapper;
 
-import com.zhh.taskmanager.model.User;
+import com.zhh.taskmanager.Entity.User;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;

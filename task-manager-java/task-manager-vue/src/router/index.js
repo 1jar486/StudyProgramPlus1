@@ -8,7 +8,10 @@ const routes = [
     { path: '/login', name: 'Login', component: Login },
     { path: '/tasks', name: 'Tasks', component: TaskBoard, meta: { requiresAuth: true } }, // 需要登录才能访问
     { path: '/copilot/:notebookId', name: 'Copilot', component: StudyCopilot, meta: { requiresAuth: true } }, // 新增路由配置
-    { path: '/notebooks', name: 'Notebooks', component: NotebookList, meta: { requiresAuth: true } }
+    { path: '/notebooks', name: 'Notebooks', component: NotebookList, meta: { requiresAuth: true } },
+    {path: '/decks', name: 'Decks', component: () => import('@/views/DeckList.vue')},
+    {path: '/decks/:deckId/cards', name: 'DeckCards', component: () => import('@/views/CardList.vue')},
+    {path: '/decks/:deckId/study', name: 'StudyMode', component: () => import('@/views/StudyMode.vue')}
 ];
 
 const router = createRouter({
@@ -29,5 +32,9 @@ router.beforeEach((to, from, next) => {
         next();
     }
 });
+
+
+
+// ...
 
 export default router;

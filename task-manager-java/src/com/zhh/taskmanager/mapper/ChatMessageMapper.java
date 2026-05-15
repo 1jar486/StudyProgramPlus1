@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.mapper;
 
-import com.zhh.taskmanager.model.ChatMessage;
+import com.zhh.taskmanager.Entity.ChatMessage;
 import org.apache.ibatis.annotations.*;
 import java.util.List;
 

@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.controller;
 
-import com.zhh.taskmanager.model.User;
+import com.zhh.taskmanager.Entity.User;
 import com.zhh.taskmanager.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;

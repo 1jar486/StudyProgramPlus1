@@ -59,6 +59,11 @@
               <span class="material-icons">public</span> 全局学习助手
             </div>
 
+            <div class="menu-item primary-item" @click="router.push('/decks'); menuState = 0">
+              <span class="material-icons" style="color: #a99df9;">style</span>
+              记忆牌组大厅
+            </div>
+
             <div v-if="isNotebookMode" class="menu-item current-item" @click="openChat(currentNotebookId)">
               <span class="material-icons">library_books</span> 当前: {{ currentNotebookName }}
             </div>

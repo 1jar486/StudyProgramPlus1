@@ -1,5 +1,5 @@
 package com.zhh.taskmanager.service;
-import com.zhh.taskmanager.model.ChatMessage;
+import com.zhh.taskmanager.Entity.ChatMessage;
 import java.util.List;
 import java.util.Map;
 

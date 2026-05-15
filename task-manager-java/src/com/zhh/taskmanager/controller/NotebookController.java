@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.controller;
 
-import com.zhh.taskmanager.model.Notebook;
+import com.zhh.taskmanager.Entity.Notebook;
 import com.zhh.taskmanager.service.NotebookService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;

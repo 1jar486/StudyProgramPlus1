@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.mapper;
 import org.apache.ibatis.annotations.*;
-import com.zhh.taskmanager.model.Document;
+import com.zhh.taskmanager.Entity.Document;
 
 import java.util.List;
 

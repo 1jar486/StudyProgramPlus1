@@ -39,7 +39,7 @@
         </div>
 
         <ul class="doc-list custom-scrollbar">
-          <li v-for="doc in documents" :key="doc.id" class="doc-item">
+          <li v-for="doc in documents" :key="doc.id" class="doc-item" @click="openPreview(doc)">
             <div class="doc-icon"><span class="material-icons">description</span></div>
             <div class="doc-info">
               <span class="doc-name" :title="doc.fileName">{{ cleanFileName(doc.fileName) }}</span>
@@ -136,7 +136,43 @@
         </div>
       </div>
     </transition>
+    <transition name="modal-fade">
+      <div class="nebula-modal-overlay" v-if="previewModal.show" @click.self="closePreview">
+        <div class="nebula-modal-content glass-panel preview-modal-lg">
+
+          <div class="modal-header">
+            <h2 class="preview-title">
+              <span class="material-icons" :style="{ color: previewModal.isPdf ? '#f56c6c' : '#7c6ff7' }">
+                {{ previewModal.isPdf ? 'picture_as_pdf' : 'text_snippet' }}
+              </span>
+              {{ previewModal.fileName }}
+            </h2>
+            <button class="btn-close-circle" @click="closePreview">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+
+          <div class="preview-body custom-scrollbar">
+            <div v-if="previewModal.loading" class="preview-loading">
+              <div class="btn-spinner" style="border-top-color: #7c6ff7; width: 40px; height: 40px; opacity: 1; position: relative;"></div>
+              <p>正在解密并传输数据流...</p >
+            </div>
+
+            <iframe
+                v-else-if="previewModal.isPdf && previewModal.url"
+                :src="previewModal.url"
+                class="pdf-viewer"
+                frameborder="0">
+            </iframe>
+
+            <pre v-else-if="!previewModal.isPdf" class="txt-viewer custom-scrollbar">{{ previewModal.textContent }}</pre>
+          </div>
+
+        </div>
+      </div>
+    </transition>
   </div>
+
 </template>
 
 <script setup>
@@ -165,6 +201,62 @@ const triggerDeleteDoc = (id) => { deleteDocConfirm.value = { show: true, id }; 
 const chatHistory = ref([]);
 const goBack = () => router.push('/notebooks');
 const triggerUpload = () => fileInput.value.click();
+
+// ==================== 【新增：文件预览核心状态与逻辑】 ====================
+const previewModal = ref({
+  show: false,
+  fileName: '',
+  url: '',
+  isPdf: false,
+  textContent: '',
+  loading: false
+});
+
+const openPreview = async (doc) => {
+  const isPdf = doc.fileName.toLowerCase().endsWith('.pdf');
+  previewModal.value = {
+    show: true,
+    fileName: doc.fileName,
+    url: '',
+    isPdf: isPdf,
+    textContent: '',
+    loading: true
+  };
+
+  try {
+    // 关键：针对不同文件类型，要求 Axios 返回不同的数据格式
+    const responseType = isPdf ? 'blob' : 'text';
+
+    // 发起请求获取文件流
+    const res = await request.get(`/api/documents/${doc.id}/preview`, {
+      responseType: responseType
+    });
+
+    if (isPdf) {
+      // 将 Blob 转换为浏览器本地的临时 URL，供 iframe 渲染
+      const blob = new Blob([res], { type: 'application/pdf' });
+      previewModal.value.url = URL.createObjectURL(blob);
+    } else {
+      // TXT 文件直接读取文本
+      previewModal.value.textContent = res;
+    }
+  } catch (error) {
+    console.error("预览文件失败", error);
+    showToast('文件读取失败或已被物理损坏', 'error');
+    previewModal.value.show = false;
+  } finally {
+    previewModal.value.loading = false;
+  }
+};
+
+const closePreview = () => {
+  // 释放内存中的 Blob URL
+  if (previewModal.value.url) {
+    URL.revokeObjectURL(previewModal.value.url);
+  }
+  previewModal.value.show = false;
+};
+// =========================================================================
 
 const showToast = (message, type = 'success') => {
   if (toastTimer) clearTimeout(toastTimer);
@@ -420,4 +512,98 @@ onMounted(() => {
 .source-body { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; font-size: 0.95rem; color: #e8e8f0; line-height: 1.8; max-height: 40vh; overflow-y: auto; white-space: pre-wrap; }
 .modal-fade-enter-active, .modal-fade-leave-active { transition: 0.3s; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; transform: translateY(20px) scale(0.95); }
+
+/* ================== 新增：文件预览相关的 UI 样式 ================== */
+
+/* 让文档列表项看起来可点击 */
+.doc-item {
+  cursor: pointer; /* 增加鼠标手型 */
+}
+.doc-item:hover {
+  transform: translateY(-2px); /* 点击前轻微上浮提示交互 */
+}
+
+/* 巨型预览窗 */
+.preview-modal-lg {
+  max-width: 900px !important; /* 突破原有 modal 的限制 */
+  width: 90vw;
+  height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 32px 32px 32px;
+}
+
+.preview-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.25rem !important;
+  color: #e8e8f0;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-body {
+  flex: 1;
+  background: rgba(6, 6, 15, 0.4); /* 深底色以突显文件内容 */
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  margin-top: 16px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.pdf-viewer {
+  width: 100%;
+  height: 100%;
+  background: #fff; /* PDF 背景通常为白，避免黑色底导致自带的阅读器突兀 */
+}
+
+.txt-viewer {
+  margin: 0;
+  padding: 24px;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  color: #e8e8f0;
+  font-family: 'SF Mono', ui-monospace, Consolas, monospace;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #a99df9;
+  gap: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+/* 覆盖之前可能存在的 .btn-close-circle 冲突，让其在预览窗完美居右 */
+.preview-modal-lg .btn-close-circle {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: #9898b4;
+  border-radius: 50%;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+.preview-modal-lg .btn-close-circle:hover {
+  background: rgba(245, 108, 108, 0.15);
+  color: #f56c6c;
+  transform: rotate(90deg) scale(1.1);
+}
 </style>

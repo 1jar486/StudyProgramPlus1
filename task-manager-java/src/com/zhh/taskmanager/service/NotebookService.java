@@ -1,5 +1,5 @@
 package com.zhh.taskmanager.service;
-import com.zhh.taskmanager.model.Notebook;
+import com.zhh.taskmanager.Entity.Notebook;
 import java.util.List;
 
 public interface NotebookService {

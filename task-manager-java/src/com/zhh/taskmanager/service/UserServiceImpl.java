@@ -1,6 +1,6 @@
 package com.zhh.taskmanager.service;
 
-import com.zhh.taskmanager.model.User;
+import com.zhh.taskmanager.Entity.User;
 import com.zhh.taskmanager.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
