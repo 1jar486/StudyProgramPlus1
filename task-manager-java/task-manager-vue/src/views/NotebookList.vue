@@ -133,6 +133,38 @@
         </div>
       </div>
     </transition>
+
+    <transition name="modal-fade">
+      <div class="nebula-modal-overlay" v-if="showCreateModal" @click.self="showCreateModal = false">
+        <div class="nebula-modal-content glass-panel">
+          <div class="modal-header">
+            <h2><span class="material-icons">add_circle_outline</span> 构建新思绪空间</h2>
+            <button class="btn-close-circle" @click="showCreateModal = false">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="nebula-input-wrapper">
+              <input
+                  v-model="newNotebookName"
+                  type="text"
+                  class="nebula-input"
+                  placeholder="输入课题或科目名称..."
+                  @keyup.enter="createNotebook"
+                  autofocus
+              />
+              <div class="focus-line"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-nebula-outline" @click="showCreateModal = false">取消</button>
+            <button class="btn-nebula-primary" @click="createNotebook" :disabled="!newNotebookName.trim()">
+              跃迁构建
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 

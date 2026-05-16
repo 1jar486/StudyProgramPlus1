@@ -1,5 +1,5 @@
 package com.zhh.taskmanager.controller;
-
+import com.zhh.taskmanager.mapper.ReviewLogMapper;
 import com.zhh.taskmanager.Entity.Flashcard;
 import com.zhh.taskmanager.service.FlashcardService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +20,9 @@ public class FlashcardController {
     @Autowired
     private FlashcardService flashcardService;
 
+    @Autowired
+    private ReviewLogMapper reviewLogMapper;
+
     // 【新增】解析 Token
     private Long getUserIdFromToken(String token) {
         return Long.parseLong(token.replace("SUCCESS_TOKEN_FOR_", ""));
@@ -32,9 +35,17 @@ public class FlashcardController {
     }
 
     @GetMapping("/deck/{deckId}/due")
-    public List<Flashcard> getDueCards(@PathVariable Integer deckId, @RequestHeader("Authorization") String token) {
-        getUserIdFromToken(token); // 拦截未登录请求
-        return flashcardService.getDueCards(deckId);
+    public List<Flashcard> getDueCards(
+            @PathVariable Integer deckId,
+            @RequestParam(defaultValue = "20") int newLimit,      // 默认每天20张新卡
+            @RequestParam(defaultValue = "100") int reviewLimit,  // 默认每天100张复习
+            @RequestHeader("Authorization") String token) {
+
+        // 1. 从前端传来的 Token 中解析出真实的 userId
+        Long userId = getUserIdFromToken(token);
+
+        // 2. 将解析出来的 userId 传给 Service 层，去动态计算该用户的限额
+        return flashcardService.getDueCards(deckId, newLimit, reviewLimit, userId);
     }
 
     @PostMapping
@@ -62,9 +73,25 @@ public class FlashcardController {
 
     @PostMapping("/{id}/review")
     public ResponseEntity<?> submitReview(@PathVariable Long id, @RequestParam String grade, @RequestHeader("Authorization") String token) {
-        getUserIdFromToken(token);
-        flashcardService.processReview(id, grade);
+        Long userId = getUserIdFromToken(token);
+        flashcardService.processReview(id, grade, userId);
         return ResponseEntity.ok().build();
+    }
+
+    // 【新增】撤销操作接口
+    @PostMapping("/{id}/rollback")
+    public ResponseEntity<?> rollbackReview(@PathVariable Long id, @RequestBody Flashcard oldState, @RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        flashcardService.rollbackReview(id, oldState, userId);
+        return ResponseEntity.ok().build();
+    }
+
+    // 【新增】获取今日复习数据接口
+    @GetMapping("/stats/today")
+    public ResponseEntity<Integer> getTodayStats(@RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        int count = reviewLogMapper.countTodayByUserId(userId);
+        return ResponseEntity.ok(count);
     }
 
     @GetMapping("/deck/{deckId}/export")
@@ -85,5 +112,12 @@ public class FlashcardController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=deck_" + deckId + ".csv")
                 .contentType(MediaType.parseMediaType("text/csv"))
                 .body(out);
+    }
+
+    // 【新增】热力图雷达数据接口
+    @GetMapping("/stats/heatmap")
+    public ResponseEntity<List<java.util.Map<String, Object>>> getHeatmapStats(@RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        return ResponseEntity.ok(reviewLogMapper.getHeatmapStats(userId));
     }
 }

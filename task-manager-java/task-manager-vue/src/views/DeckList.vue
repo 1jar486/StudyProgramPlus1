@@ -7,7 +7,8 @@
       </div>
     </transition>
 
-    <header class="nebula-header">
+    <header class="nebula-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+
       <div class="header-left">
         <h1 class="nebula-title-main">
           <span class="material-icons tech-icon">style</span>
@@ -15,10 +16,18 @@
         </h1>
         <p class="nebula-subtitle">基于 SM-2 智能算法的专属知识记忆库</p >
       </div>
-      <div class="header-right">
+
+      <div class="header-right" style="display: flex; justify-content: flex-end; align-items: center; gap: 20px;">
+
+        <button class="btn-nebula-outline" @click="$router.push('/stats')">
+          <span class="material-icons">data_usage</span>
+          查看记忆热力图
+        </button>
+
         <button class="btn-nebula-outline" @click="router.push('/tasks')">
           <span class="material-icons">dashboard</span>返回中枢
         </button>
+
       </div>
     </header>
 

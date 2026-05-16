@@ -1,9 +1,9 @@
 <template>
   <div class="nebula-app-container">
+
     <div class="ambient-glow glow-1"></div>
     <div class="ambient-glow glow-2"></div>
     <div class="ambient-glow glow-3"></div>
-
     <canvas id="globalParticleCanvas" ref="globalCanvasRef" class="global-particles"></canvas>
 
     <main class="nebula-main-viewport custom-scrollbar">
@@ -19,7 +19,9 @@
             </span>
             {{ chatTargetId === 999 ? '🤖 智能机器黑' : `🧠 专属外脑 (${chatTargetName})` }}
           </span>
-          <button class="btn-close" @click="showChat = false" title="收起面板"><span class="material-icons">close</span></button>
+          <button class="btn-close" @click="showChat = false" title="收起面板">
+            <span class="material-icons">close</span>
+          </button>
         </div>
 
         <div class="chat-body custom-scrollbar" ref="chatBodyRef">
@@ -40,17 +42,20 @@
         </div>
       </aside>
     </transition>
+
+    <div v-if="menuState > 0" class="nebula-overlay" @click="menuState = 0"></div>
+
+    <div class="global-pet-wrapper" ref="petRef" :style="{ left: petX + 'px', top: petY + 'px' }" @mousedown="startDrag" @touchstart="startDragTouch">
+      <img :src="currentDisplaySrc" alt="罗小黑" draggable="false" crossorigin="anonymous" @load="extractStaticFrame"/>
     </div>
 
-  <div v-if="menuState > 0" class="nebula-overlay" @click="menuState = 0"></div>
-
-  <div class="global-pet-wrapper" ref="petRef" :style="{ left: petX + 'px', top: petY + 'px' }" @mousedown="startDrag" @touchstart="startDragTouch">
-
-    <img :src="currentDisplaySrc" alt="罗小黑" draggable="false" crossorigin="anonymous" @load="extractStaticFrame"/>
-
     <transition name="menu-fade">
-      <div v-if="menuState > 0" class="nebula-list-menu glass-panel" @click.stop @mousedown.stop @touchstart.stop>
-
+      <div
+          v-if="menuState > 0"
+          class="nebula-list-menu glass-panel"
+          :style="{ position: 'fixed', left: (petX - 230) + 'px', top: (petY - 10) + 'px', zIndex: 9999 }"
+          @click.stop
+      >
         <div v-if="menuState === 1" class="menu-container">
           <div class="menu-header">中枢控制面板</div>
           <div class="menu-body custom-scrollbar">
@@ -94,37 +99,41 @@
             动作库
           </div>
           <div class="menu-body custom-scrollbar">
-            <div class="menu-item" v-for="action in actionData" :key="action.id" @click.stop="triggerAction(action.id)">
+            <div class="menu-item" v-for="action in actionData" :key="action.id" @click="triggerAction(action.id)">
               <span class="emoji-icon">{{ action.icon }}</span> {{ action.name }}
             </div>
           </div>
         </div>
-
       </div>
     </transition>
-  </div>
 
-  <transition name="modal-fade">
-    <div class="nebula-modal-overlay" v-if="showCreateModal" @click.self="showCreateModal = false">
-      <div class="nebula-modal-content glass-panel">
-        <div class="modal-header">
-          <h2>新建思绪空间</h2>
-          <button class="btn-close" @click="showCreateModal = false"><span class="material-icons">close</span></button>
-        </div>
-        <div class="modal-body">
-          <div class="nebula-input-wrapper" style="margin-bottom: 0;">
-            <input v-model="newNotebookName" type="text" class="nebula-input" placeholder="输入课题或科目名称..." @keyup.enter="handleCreateNotebook" autofocus />
-            <div class="focus-line"></div>
+    <transition name="modal-fade">
+      <div class="nebula-modal-overlay" v-if="showCreateModal" @click.self="showCreateModal = false">
+        <div class="nebula-modal-content glass-panel">
+          <div class="modal-header">
+            <h2>新建思绪空间</h2>
+            <button class="btn-close" @click="showCreateModal = false">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="nebula-input-wrapper" style="margin-bottom: 0;">
+              <input v-model="newNotebookName" type="text" class="nebula-input" placeholder="输入课题或科目名称..." @keyup.enter="handleCreateNotebook" autofocus />
+              <div class="focus-line"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-nebula-outline" @click="showCreateModal = false">取消</button>
+            <button class="btn-nebula-primary" @click="handleCreateNotebook" :disabled="!newNotebookName.trim()">跃迁构建</button>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn-nebula-outline" @click="showCreateModal = false">取消</button>
-          <button class="btn-nebula-primary" @click="handleCreateNotebook" :disabled="!newNotebookName.trim()">跃迁构建</button>
-        </div>
       </div>
-    </div>
-  </transition>
+    </transition>
+
+  </div>
 </template>
+
+
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
@@ -319,8 +328,8 @@ const navigateToNotebook = (id) => {
 };
 
 const openCreateModal = () => {
-  menuState.value = 0;
-  showCreateModal.value = true;
+  showCreateModal.value = true; // 1. 开弹窗
+  menuState.value = 0;          // 2. 关菜单
 };
 
 const handleCreateNotebook = async () => {

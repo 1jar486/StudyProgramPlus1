@@ -7,7 +7,7 @@ public interface FlashcardService {
 
     List<Flashcard> getAllCards(Integer deckId);
 
-    List<Flashcard> getDueCards(Integer deckId);
+    List<Flashcard> getDueCards(Integer deckId, int newLimit, int reviewLimit, Long userId);
 
     void createFlashcard(Flashcard card);
 
@@ -17,5 +17,7 @@ public interface FlashcardService {
     // 【修改点】加入了 Long userId 参数
     void deleteFlashcard(Long id, Long userId);
 
-    void processReview(Long flashcardId, String grade);
+    void processReview(Long flashcardId, String grade, Long userId);
+
+    void rollbackReview(Long id, Flashcard oldState, Long userId);
 }

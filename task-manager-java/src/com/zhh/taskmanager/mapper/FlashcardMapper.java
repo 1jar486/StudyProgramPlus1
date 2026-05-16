@@ -31,9 +31,13 @@ public interface FlashcardMapper {
     @Select("SELECT * FROM flashcard WHERE deck_id = #{deckId} ORDER BY created_time DESC")
     List<Flashcard> findAllByDeckId(Integer deckId);
 
-    // 查询某牌组下，当前时间之前需要复习的所有卡片 (用于沉浸式学习模式)
-    @Select("SELECT * FROM flashcard WHERE deck_id = #{deckId} AND next_review_time <= NOW() ORDER BY next_review_time ASC")
-    List<Flashcard> findDueCardsByDeckId(Integer deckId);
+    // 1. 获取每日新卡片 (状态为 NEW，按创建时间顺延，先建的先学)
+    @Select("SELECT * FROM flashcard WHERE deck_id = #{deckId} AND status = 'NEW' ORDER BY created_time ASC LIMIT #{limit}")
+    List<Flashcard> findNewCards(@Param("deckId") Integer deckId, @Param("limit") int limit);
+
+    // 2. 获取每日待复习卡片 (状态不是 NEW，且已经到期的卡片)
+    @Select("SELECT * FROM flashcard WHERE deck_id = #{deckId} AND status != 'NEW' AND next_review_time <= NOW() ORDER BY next_review_time ASC LIMIT #{limit}")
+    List<Flashcard> findReviewCards(@Param("deckId") Integer deckId, @Param("limit") int limit);
 
     // ================== 核心算法专用 ==================
     @Update("UPDATE flashcard SET status = #{status}, next_review_time = #{nextReviewTime}, " +
@@ -41,6 +45,13 @@ public interface FlashcardMapper {
             "consecutive_correct = #{consecutiveCorrect} " +
             "WHERE id = #{id}")
     void updateReviewStats(Flashcard flashcard);
+
+    // 【新增】安全回滚卡片状态
+    @Update("UPDATE flashcard SET status = #{status}, next_review_time = #{nextReviewTime}, " +
+            "interval_minutes = #{intervalMinutes}, ease_factor = #{easeFactor}, " +
+            "consecutive_correct = #{consecutiveCorrect} " +
+            "WHERE id = #{id}")
+    void rollbackStats(Flashcard flashcard);
 
     @Delete("DELETE FROM flashcard WHERE deck_id = #{deckId}")
     void deleteByDeckId(Integer deckId);

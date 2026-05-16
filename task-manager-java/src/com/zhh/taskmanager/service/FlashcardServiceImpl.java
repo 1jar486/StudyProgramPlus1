@@ -2,6 +2,7 @@ package com.zhh.taskmanager.service;
 
 import com.zhh.taskmanager.Entity.Flashcard;
 import com.zhh.taskmanager.mapper.FlashcardMapper;
+import com.zhh.taskmanager.mapper.ReviewLogMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,14 +15,31 @@ public class FlashcardServiceImpl implements FlashcardService {
     @Autowired
     private FlashcardMapper flashcardMapper;
 
+    @Autowired
+    private ReviewLogMapper reviewLogMapper; // 注入日志记录器
+
     @Override
     public List<Flashcard> getAllCards(Integer deckId) {
         return flashcardMapper.findAllByDeckId(deckId);
     }
 
     @Override
-    public List<Flashcard> getDueCards(Integer deckId) {
-        return flashcardMapper.findDueCardsByDeckId(deckId);
+    public List<Flashcard> getDueCards(Integer deckId, int newLimit, int reviewLimit, Long userId) {
+        // 1. 查询今天已经消耗的额度
+        int newLearnedToday = reviewLogMapper.countNewLearnedToday(userId);
+        int oldReviewedToday = reviewLogMapper.countOldReviewedToday(userId);
+
+        // 2. 动态计算真实剩余额度 (防止出现负数)
+        int effectiveNewLimit = Math.max(0, newLimit - newLearnedToday);
+        int effectiveReviewLimit = Math.max(0, reviewLimit - oldReviewedToday);
+
+        // 3. 根据真实剩余额度去数据库捞卡片
+        List<Flashcard> reviewCards = flashcardMapper.findReviewCards(deckId, effectiveReviewLimit);
+        List<Flashcard> newCards = flashcardMapper.findNewCards(deckId, effectiveNewLimit);
+
+        List<Flashcard> combined = new java.util.ArrayList<>(reviewCards);
+        combined.addAll(newCards);
+        return combined;
     }
 
     @Override
@@ -50,13 +68,15 @@ public class FlashcardServiceImpl implements FlashcardService {
         flashcardMapper.deleteByIdAndUserId(id, userId);
     }
 
+    // 修改此方法，保存时同时插入日志
     @Override
-    public void processReview(Long flashcardId, String grade) {
+    public void processReview(Long flashcardId, String grade, Long userId) {
         Flashcard card = flashcardMapper.findById(flashcardId);
         if (card == null) return;
 
         LocalDateTime now = LocalDateTime.now();
 
+        // SM-2 核心算法逻辑保持不变
         switch (grade.toUpperCase()) {
             case "HARD":
                 card.setStatus("LEARNING");
@@ -91,5 +111,16 @@ public class FlashcardServiceImpl implements FlashcardService {
 
         card.setNextReviewTime(now.plusMinutes(card.getIntervalMinutes()));
         flashcardMapper.updateReviewStats(card);
+
+        // 【新增】记录此次复习日志，用于热力图统计与状态回滚
+        reviewLogMapper.insertLog(userId, flashcardId, grade);
+    }
+
+    // 【新增】执行回滚逻辑
+    @Override
+    public void rollbackReview(Long id, Flashcard oldState, Long userId) {
+        oldState.setId(id);
+        flashcardMapper.rollbackStats(oldState);          // 还原卡片状态
+        reviewLogMapper.deleteLastLog(userId, id);        // 抹除统计日志
     }
 }

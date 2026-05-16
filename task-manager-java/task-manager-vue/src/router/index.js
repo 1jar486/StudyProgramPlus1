@@ -11,7 +11,8 @@ const routes = [
     { path: '/notebooks', name: 'Notebooks', component: NotebookList, meta: { requiresAuth: true } },
     {path: '/decks', name: 'Decks', component: () => import('@/views/DeckList.vue')},
     {path: '/decks/:deckId/cards', name: 'DeckCards', component: () => import('@/views/CardList.vue')},
-    {path: '/decks/:deckId/study', name: 'StudyMode', component: () => import('@/views/StudyMode.vue')}
+    {path: '/decks/:deckId/study', name: 'StudyMode', component: () => import('@/views/StudyMode.vue')},
+    {path: '/stats', name: 'Stats', component: () => import('../views/Stats.vue') }// 确保这里的路径和你新建文件的位置一致！}
 ];
 
 const router = createRouter({

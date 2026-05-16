@@ -16,6 +16,6 @@ public interface UserService {
      */
     User login(String username, String password);
 
-    // 返回值类型为什么是Boolean和login?
+    // 返回值类型为什么是Boolean和user?
 
 }
