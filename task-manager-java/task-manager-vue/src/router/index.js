@@ -6,13 +6,13 @@ import NotebookList from "../views/NotebookList.vue"
 const routes = [
     { path: '/', redirect: '/tasks' },
     { path: '/login', name: 'Login', component: Login },
-    { path: '/tasks', name: 'Tasks', component: TaskBoard, meta: { requiresAuth: true } }, // 需要登录才能访问
-    { path: '/copilot/:notebookId', name: 'Copilot', component: StudyCopilot, meta: { requiresAuth: true } }, // 新增路由配置
-    { path: '/notebooks', name: 'Notebooks', component: NotebookList, meta: { requiresAuth: true } },
-    {path: '/decks', name: 'Decks', component: () => import('@/views/DeckList.vue')},
-    {path: '/decks/:deckId/cards', name: 'DeckCards', component: () => import('@/views/CardList.vue')},
-    {path: '/decks/:deckId/study', name: 'StudyMode', component: () => import('@/views/StudyMode.vue')},
-    {path: '/stats', name: 'Stats', component: () => import('../views/Stats.vue') }// 确保这里的路径和你新建文件的位置一致！}
+    { path: '/tasks', name: 'Tasks', component: () => import('../views/TaskBoard.vue'), meta: { requiresAuth: true } },
+    { path: '/copilot/:notebookId', name: 'Copilot', component: () => import("../views/StudyCopilot.vue"), meta: { requiresAuth: true } },
+    { path: '/notebooks', name: 'Notebooks', component: () => import("../views/NotebookList.vue"), meta: { requiresAuth: true } },
+    { path: '/decks', name: 'Decks', component: () => import('@/views/DeckList.vue'), meta: { requiresAuth: true } },
+    { path: '/decks/:deckId/cards', name: 'DeckCards', component: () => import('@/views/CardList.vue'), meta: { requiresAuth: true } },
+    { path: '/decks/:deckId/study', name: 'StudyMode', component: () => import('@/views/StudyMode.vue'), meta: { requiresAuth: true } },
+    { path: '/stats', name: 'Stats', component: () => import('../views/Stats.vue'), meta: { requiresAuth: true } }
 ];
 
 const router = createRouter({

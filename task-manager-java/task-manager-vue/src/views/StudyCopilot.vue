@@ -69,14 +69,17 @@
           <div v-for="(msg, index) in chatHistory" :key="index" :class="['chat-bubble-wrapper', msg.role]">
             <div class="chat-bubble-inner">
               <div v-if="msg.role === 'ai'" class="ai-avatar">✨</div>
-              <div class="chat-bubble">
-                <template v-for="(part, idx) in parseMessage(msg.text)" :key="idx">
-                  <span v-if="part.type === 'text'" style="white-space: pre-wrap;">{{ part.content }}</span>
-                  <span v-else-if="part.type === 'citation'" class="citation-badge" @click="showSource(msg.sources, part.id)">
-                    {{ part.id }}
-                  </span>
-                </template>
+
+              <div v-if="msg.role === 'ai'"
+                   class="chat-bubble markdown-body"
+                   v-html="renderAiMessage(msg.text)"
+                   @click="handleBubbleClick($event, msg.sources)">
               </div>
+
+              <div v-else class="chat-bubble" style="white-space: pre-wrap;">
+                {{ msg.text }}
+              </div>
+
               <div v-if="msg.role === 'user'" class="user-avatar">👤</div>
             </div>
           </div>
@@ -179,11 +182,17 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import request from '../utils/request';
+// 1. 在顶部导入依赖（紧挨着现有的 import）
+import { marked } from 'marked';
+import hljs from 'highlight.js';
+import DOMPurify from 'dompurify';
+import 'highlight.js/styles/atom-one-dark.css';
 
 const router = useRouter();
 const route = useRoute();
 const notebookId = route.params.notebookId;
-
+// 1. 在 <script setup> 最顶部导入刚才建立的工具函数
+import { renderAiMessage } from '@/utils/markdown';
 const fileInput = ref(null);
 const documents = ref([]);
 const isUploading = ref(false);
@@ -201,6 +210,15 @@ const triggerDeleteDoc = (id) => { deleteDocConfirm.value = { show: true, id }; 
 const chatHistory = ref([]);
 const goBack = () => router.push('/notebooks');
 const triggerUpload = () => fileInput.value.click();
+
+//  初始化 Markdown 全局配置
+marked.setOptions({
+  highlight: function(code, lang) {
+    const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+    return hljs.highlight(code, { language }).value;
+  },
+  breaks: true // 支持回车换行
+});
 
 // ==================== 【新增：文件预览核心状态与逻辑】 ====================
 const previewModal = ref({
@@ -264,23 +282,17 @@ const showToast = (message, type = 'success') => {
   toastTimer = setTimeout(() => { toast.value.show = false; }, 3000);
 };
 
-const parseMessage = (text) => {
-  if (!text) return [];
-  const regex = /\[(\d+)\]/g;
-  const parts = [];
-  let lastIndex = 0;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
-    }
-    parts.push({ type: 'citation', id: parseInt(match[1]) });
-    lastIndex = regex.lastIndex;
+
+/**
+ * 事件代理：拦截 v-html 渲染出来的气泡内部的点击事件
+ */
+const handleBubbleClick = (event, sources) => {
+  const target = event.target;
+  // 如果点击的是我们注入的引用角标
+  if (target.classList.contains('citation-badge')) {
+    const id = parseInt(target.getAttribute('data-id'), 10);
+    showSource(sources, id);
   }
-  if (lastIndex < text.length) {
-    parts.push({ type: 'text', content: text.substring(lastIndex) });
-  }
-  return parts;
 };
 
 const showSource = (sources, id) => {
@@ -516,94 +528,46 @@ onMounted(() => {
 /* ================== 新增：文件预览相关的 UI 样式 ================== */
 
 /* 让文档列表项看起来可点击 */
-.doc-item {
-  cursor: pointer; /* 增加鼠标手型 */
-}
-.doc-item:hover {
-  transform: translateY(-2px); /* 点击前轻微上浮提示交互 */
-}
+.doc-item {cursor: pointer; /* 增加鼠标手型 */}
+.doc-item:hover {transform: translateY(-2px); /* 点击前轻微上浮提示交互 */}
 
 /* 巨型预览窗 */
-.preview-modal-lg {
-  max-width: 900px !important; /* 突破原有 modal 的限制 */
-  width: 90vw;
-  height: 85vh;
-  display: flex;
-  flex-direction: column;
-  padding: 24px 32px 32px 32px;
-}
+.preview-modal-lg {max-width: 900px !important; /* 突破原有 modal 的限制 */width: 90vw;height: 85vh;display: flex;flex-direction: column;padding: 24px 32px 32px 32px;}
 
-.preview-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 1.25rem !important;
-  color: #e8e8f0;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.preview-title {display: flex;align-items: center;gap: 12px;font-size: 1.25rem !important;color: #e8e8f0;margin: 0;white-space: nowrap;overflow: hidden;text-overflow: ellipsis;}
 
-.preview-body {
-  flex: 1;
-  background: rgba(6, 6, 15, 0.4); /* 深底色以突显文件内容 */
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  margin-top: 16px;
-  overflow: hidden;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
+.preview-body {flex: 1;background: rgba(6, 6, 15, 0.4); /* 深底色以突显文件内容 */border: 1px solid rgba(255, 255, 255, 0.05);border-radius: 16px;margin-top: 16px;overflow: hidden;position: relative;display: flex;flex-direction: column;}
 
-.pdf-viewer {
-  width: 100%;
-  height: 100%;
-  background: #fff; /* PDF 背景通常为白，避免黑色底导致自带的阅读器突兀 */
-}
+.pdf-viewer {width: 100%;height: 100%;background: #fff; /* PDF 背景通常为白，避免黑色底导致自带的阅读器突兀 */}
 
-.txt-viewer {
-  margin: 0;
-  padding: 24px;
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  color: #e8e8f0;
-  font-family: 'SF Mono', ui-monospace, Consolas, monospace;
-  font-size: 0.95rem;
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
+.txt-viewer {margin: 0;padding: 24px;width: 100%;height: 100%;overflow-y: auto;color: #e8e8f0;font-family: 'SF Mono', ui-monospace, Consolas, monospace;font-size: 0.95rem;line-height: 1.8;white-space: pre-wrap;word-wrap: break-word;}
 
-.preview-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #a99df9;
-  gap: 16px;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
+.preview-loading {display: flex;flex-direction: column;align-items: center;justify-content: center;height: 100%;color: #a99df9;gap: 16px;font-weight: 600;letter-spacing: 1px;}
 
 /* 覆盖之前可能存在的 .btn-close-circle 冲突，让其在预览窗完美居右 */
-.preview-modal-lg .btn-close-circle {
-  background: rgba(255, 255, 255, 0.05);
-  border: none;
-  color: #9898b4;
-  border-radius: 50%;
-  width: 36px; height: 36px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-}
-.preview-modal-lg .btn-close-circle:hover {
-  background: rgba(245, 108, 108, 0.15);
-  color: #f56c6c;
-  transform: rotate(90deg) scale(1.1);
-}
+.preview-modal-lg .btn-close-circle {background: rgba(255, 255, 255, 0.05);border: none;color: #9898b4;border-radius: 50%;width: 36px; height: 36px;display: flex; align-items: center; justify-content: center;cursor: pointer;transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);flex-shrink: 0;}
+.preview-modal-lg .btn-close-circle:hover {background: rgba(245, 108, 108, 0.15);color: #f56c6c;transform: rotate(90deg) scale(1.1);}
+
+/* ================== 新增：Gemini 风格 Markdown 富文本样式 ================== */
+/* AI 回复通常篇幅较长，拓宽最大宽度限制以更好地展示排版 */
+.chat-bubble-inner {max-width: 90%;}
+.markdown-body {font-size: 0.95rem;line-height: 1.7;color: #e8e8f0;word-break: break-word;}
+.markdown-body:deep(p) {margin: 0 0 12px;}
+.markdown-body:deep(p:last-child) {margin-bottom: 0;}
+.markdown-body:deep(pre) {background: rgba(0, 0, 0, 0.4);padding: 16px;border-radius: 12px;border: 1px solid rgba(255, 255, 255, 0.08);overflow-x: auto;margin: 16px 0;}
+/* 行内代码块的高亮强调 */
+.markdown-body:deep(code) {font-family: 'SF Mono', ui-monospace, Consolas, monospace;font-size: 0.85em;background: rgba(124, 111, 247, 0.15); /* 微弱的紫罗兰背景 */padding: 3px 6px;border-radius: 6px;color: #a99df9;}
+.markdown-body:deep(pre code) {background: transparent;padding: 0;color: inherit;}
+/* 列表样式优化 */
+.markdown-body:deep(ul), .markdown-body:deep(ol) {margin-top: 0;margin-bottom: 12px;padding-left: 24px;}
+.markdown-body:deep(li) { margin-bottom: 6px; }
+/* 标题层次优化 */
+.markdown-body:deep(h1), .markdown-body:deep(h2), .markdown-body:deep(h3), .markdown-body:deep(h4) {color: #fff;font-weight: 700;margin-top: 24px;margin-bottom: 12px;}
+.markdown-body:deep(h3) { font-size: 1.15rem; }
+.markdown-body:deep(strong) { color: #a99df9; font-weight: 700; }
+/* 引用块样式优化 */
+.markdown-body:deep(blockquote) {border-left: 4px solid #7c6ff7;margin: 0 0 16px;padding: 8px 16px;background: rgba(124, 111, 247, 0.1);border-radius: 0 8px 8px 0;color: #9898b4;}
+/* 覆盖修复原有 .citation-badge 在富文本中的位置漂移 */
+.markdown-body:deep(.citation-badge) {display: inline-flex;justify-content: center;align-items: center;background: rgba(124, 111, 247, 0.2);color: #a99df9;border: 1px solid rgba(124, 111, 247, 0.4);font-size: 0.75rem;font-weight: 700;width: 20px;height: 20px;border-radius: 50%;margin: 0 4px;cursor: pointer;transition: 0.3s;vertical-align: super;}
+.markdown-body:deep(.citation-badge:hover) {background: #7c6ff7;color: #fff;box-shadow: 0 0 10px rgba(124, 111, 247, 0.5);transform: scale(1.1);}
 </style>

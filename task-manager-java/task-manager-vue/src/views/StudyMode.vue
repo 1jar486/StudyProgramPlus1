@@ -41,38 +41,39 @@
 
     <main class="study-main">
       <template v-if="!isFinished && currentCard">
-        <div class="flashcard-scene">
-          <div class="flashcard-body" :class="{ 'is-flipped': isFlipped }" @click="flipCard">
-            <div class="card-face card-front glass-panel">
-              <span class="face-label">Q</span>
-              <div class="card-content markdown-body custom-scrollbar" v-html="renderMd(currentCard.frontContent)"></div>
-              <div class="flip-hint" v-show="!isFlipped">
-                <span class="material-icons">touch_app</span> 点击或按空格键翻转查看记忆锚点
+        <div class="anki-flashcard glass-panel">
+
+          <div class="card-content question-area">
+            <span class="card-label">Question</span>
+            <div :class="['card-text markdown-body custom-scrollbar', isSingleWord(currentCard.frontContent) ? 'hero-word' : 'regular-sentence']"
+                 v-html="renderMd(currentCard.frontContent)">
+            </div>
+          </div>
+
+          <div class="divider" v-if="isFlipped"></div>
+
+          <transition name="fade-slide">
+            <div class="card-content answer-area" v-if="isFlipped">
+              <span class="card-label success-text">Answer</span>
+              <div :class="['card-text markdown-body custom-scrollbar', isSingleWord(currentCard.backContent) ? 'hero-word' : 'regular-sentence']"
+                   v-html="renderMd(currentCard.backContent)">
               </div>
             </div>
-            <div class="card-face card-back glass-panel">
-              <span class="face-label back-label">A</span>
-              <div class="card-content markdown-body custom-scrollbar" v-html="renderMd(currentCard.backContent)"></div>
+          </transition>
+
+          <div class="card-actions">
+            <button v-if="!isFlipped" class="btn-reveal" @click="flipCard">
+              点击显示答案 (Space)
+            </button>
+
+            <div v-else class="rating-buttons">
+              <button class="btn-rate hard" @click="submitGrade('HARD')">生疏 (1)</button>
+              <button class="btn-rate good" @click="submitGrade('GOOD')">掌握 (2)</button>
+              <button class="btn-rate easy" @click="submitGrade('EASY')">简单 (3)</button>
             </div>
           </div>
-        </div>
 
-        <transition name="fade-up">
-          <div class="action-dock" v-show="isFlipped">
-            <button class="btn-grade grade-hard" @click="submitGrade('HARD')">
-              <span class="grade-title">生疏 (1)</span>
-              <span class="grade-desc">重新学习</span>
-            </button>
-            <button class="btn-grade grade-good" @click="submitGrade('GOOD')">
-              <span class="grade-title">掌握 (2)</span>
-              <span class="grade-desc">巩固记忆</span>
-            </button>
-            <button class="btn-grade grade-easy" @click="submitGrade('EASY')">
-              <span class="grade-title">简单 (3)</span>
-              <span class="grade-desc">延迟复习</span>
-            </button>
-          </div>
-        </transition>
+        </div>
       </template>
 
       <div v-else class="completion-state glass-panel">
@@ -206,6 +207,14 @@ const saveSettings = () => {
 };
 
 const flipCard = () => { isFlipped.value = !isFlipped.value; };
+
+// 判断是否为单个单词或极短词组（无空格，或长度小于 15 个字符）
+const isSingleWord = (text) => {
+  if (!text) return false;
+  const trimmed = text.trim();
+  // 如果没有空格，或者总长度很短，就判定为单词/短语格式
+  return !/\s/.test(trimmed) || trimmed.length <= 20;
+};
 
 // 提交复习评价
 const submitGrade = async (grade) => {
@@ -352,4 +361,67 @@ onUnmounted(() => {
 .nebula-input-group label{display:block;font-size:0.85rem;color:#9898b4;margin-bottom:8px;}
 .nebula-input{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:12px;padding:12px 16px;outline:none;transition:all 0.3s;}
 .nebula-input:focus{border-color:#7c6ff7;background:rgba(124,111,247,0.05);box-shadow:0 0 0 4px rgba(124,111,247,0.1);}
+
+/* 闪卡本体：大小适中，高级玻璃态，水平居中 */
+.anki-flashcard {
+  width: 90%;
+  max-width: 580px; /* 控制最大宽度，避免太宽 */
+  min-height: 400px;
+  margin: 40px auto; /* 让卡片在主区域水平居中，上下留白 */
+  background: rgba(25, 25, 45, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  padding: 40px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* 内容垂直居中 */
+.card-content { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+/* 顶部标签提示 */
+.card-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: #6b6b85; margin-bottom: 16px; text-align: center; }
+.success-text { color: #4ade80; }
+
+/* 🌟 核心：单词超大震撼排版 */
+.hero-word { text-align: center; }
+/* 穿透 Markdown 的 p 标签进行放大 */
+.hero-word :deep(p) {
+  font-size: 3.5rem !important;
+  font-weight: 800 !important;
+  line-height: 1.2;
+  color: #ffffff;
+  text-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+  margin: 0;
+}
+
+/* 常规句子排版（如果不是单词） */
+.regular-sentence { text-align: left; }
+.regular-sentence :deep(p) { font-size: 1.15rem; line-height: 1.7; color: #e8e8f0; }
+
+/* 渐隐分割线 */
+.divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); margin: 30px 0; }
+
+/* 底部操作区 */
+.card-actions { margin-top: auto; padding-top: 30px; display: flex; justify-content: center; }
+
+/* 按钮样式 */
+.btn-reveal { background: transparent; color: #a99df9; border: 1px solid #7c6ff7; padding: 12px 32px; border-radius: 50px; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; }
+.btn-reveal:hover { background: #7c6ff7; color: #fff; box-shadow: 0 0 20px rgba(124, 111, 247, 0.4); }
+
+.rating-buttons { display: flex; gap: 16px; }
+.btn-rate { padding: 12px 28px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.3s; border: none; font-size: 0.95rem; }
+.hard { background: rgba(245,108,108,0.15); color: #f56c6c; border: 1px solid rgba(245,108,108,0.3); }
+.hard:hover { background: #f56c6c; color: #fff; box-shadow: 0 0 15px rgba(245,108,108,0.4); }
+.good { background: rgba(124,111,247,0.15); color: #a99df9; border: 1px solid rgba(124,111,247,0.3); }
+.good:hover { background: #7c6ff7; color: #fff; box-shadow: 0 0 15px rgba(124,111,247,0.4); }
+.easy { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
+.easy:hover { background: #4ade80; color: #111827; box-shadow: 0 0 15px rgba(74,222,128,0.4); }
+
+/* 淡入动画 */
+.fade-slide-enter-active { transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.fade-slide-enter-from { opacity: 0; transform: translateY(15px); }
 </style>
