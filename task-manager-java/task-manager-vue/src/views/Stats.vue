@@ -1,190 +1,223 @@
 <template>
-  <div class="glass-app-container stats-container">
-    <header class="study-header">
-      <div class="header-left-actions">
-        <button class="btn-icon-blur" @click="goBack" title="返回控制大厅">
-          <span class="material-icons">arrow_back</span>
-        </button>
-        <div class="deck-title-badge">
-          <span class="material-icons" style="font-size: 16px; margin-right: 4px;">analytics</span>
-          记忆神经元活跃雷达
+  <div class="stats-page-wrapper custom-scrollbar">
+    <div class="summary-container">
+      <div class="stat-card glass-panel">
+        <div class="card-icon-box"><span class="material-icons">bolt</span></div>
+        <div class="card-info">
+          <div class="number-row">
+            <span class="value">{{ totalNodes }}</span>
+            <span class="unit">NODES</span>
+          </div>
+          <p class="label">累计巩固节点</p>
         </div>
       </div>
-    </header>
 
-    <main class="stats-main">
-      <div class="glass-panel chart-panel">
-        <div class="panel-header">
-          <h2>年度突触连接热力图</h2>
-          <p class="subtitle">记录你每一天的脑力激荡与记忆重塑</p >
-        </div>
-
-        <div ref="heatmapRef" class="echarts-container"></div>
-
-        <div class="stats-summary">
-          <div class="summary-item">
-            <span class="summary-value">{{ totalReviews }}</span>
-            <span class="summary-label">累计巩固节点</span>
+      <div class="stat-card glass-panel">
+        <div class="card-icon-box streak-icon"><span class="material-icons">local_fire_department</span></div>
+        <div class="card-info">
+          <div class="number-row">
+            <span class="value">{{ maxStreak }}</span>
+            <span class="unit">DAYS</span>
           </div>
-          <div class="summary-item">
-            <span class="summary-value">{{ maxStreak }}</span>
-            <span class="summary-label">最长连续活跃(天)</span>
-          </div>
+          <p class="label">最长连续活跃</p>
         </div>
       </div>
-    </main>
+    </div>
+
+    <div class="main-chart-section glass-panel">
+      <div class="chart-header">
+        <h2>年度突触连接热力图</h2>
+        <p>记录你每一天的脑力激荡与记忆重塑</p>
+      </div>
+
+      <div class="decoration-wave">
+        <svg viewBox="0 0 100 40" class="pulse-svg">
+          <path d="M0 20 Q 10 5, 20 20 T 40 20 T 60 20 T 80 20 T 100 20" fill="none" stroke="rgba(124, 111, 247, 0.4)" stroke-width="2" />
+        </svg>
+      </div>
+
+      <div class="chart-scroll-box custom-scrollbar">
+        <div ref="heatmapRef" class="heatmap-chart"></div>
+      </div>
+
+      <div class="visual-map-legend">
+        <span>0</span>
+        <div class="legend-bar"></div>
+        <span>50+</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, markRaw } from 'vue';
-import { useRouter } from 'vue-router';
-import request from '@/utils/request';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
+import request from '../utils/request';
 
-const router = useRouter();
 const heatmapRef = ref(null);
 let myChart = null;
+let resizeObserver = null;
+const loading = ref(true);
 
-const totalReviews = ref(0);
+// 真实业务数据状态
+const totalNodes = ref(0);
 const maxStreak = ref(0);
 
-const goBack = () => {
-  router.push('/decks'); // 返回你的主面板
-};
-
-// 计算图表需要的日期范围 (今年)
-const getYearRange = () => {
-  const currentYear = new Date().getFullYear();
-  return [`${currentYear}-01-01`, `${currentYear}-12-31`];
-};
-
-// 计算最长连续打卡天数
+// 计算连续天数的算法
 const calculateStreak = (data) => {
   if (!data || data.length === 0) return 0;
+  const sortedDates = data
+      .filter(item => item[1] > 0)
+      .map(item => item[0])
+      .sort();
+
+  if (sortedDates.length === 0) return 0;
+
   let currentStreak = 1;
-  let longestStreak = 1;
+  let max = 1;
 
-  for (let i = 1; i < data.length; i++) {
-    const prevDate = new Date(data[i-1].date);
-    const currDate = new Date(data[i].date);
-    const diffTime = Math.abs(currDate - prevDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  for (let i = 1; i < sortedDates.length; i++) {
+    const prev = new Date(sortedDates[i-1]);
+    const curr = new Date(sortedDates[i]);
+    const diff = (curr - prev) / (1000 * 60 * 60 * 24);
 
-    if (diffDays === 1) {
+    if (diff === 1) {
       currentStreak++;
-      longestStreak = Math.max(longestStreak, currentStreak);
-    } else {
+      max = Math.max(max, currentStreak);
+    } else if (diff > 1) {
       currentStreak = 1;
     }
   }
-  return longestStreak;
+  return max;
 };
 
 const initChart = async () => {
   try {
     const res = await request.get('/api/flashcards/stats/heatmap');
+    const data = res.map(item => [item.date, item.count]);
 
-    // 整理 ECharts 所需的数据格式: [[date, count], [date, count]]
-    let sum = 0;
-    const chartData = res.map(item => {
-      sum += item.count;
-      return [item.date, item.count];
-    });
+    // 🌟 真实数据汇总逻辑
+    totalNodes.value = data.reduce((sum, item) => sum + item[1], 0);
+    maxStreak.value = calculateStreak(data);
 
-    totalReviews.value = sum;
-    maxStreak.value = calculateStreak(res);
+    loading.value = false;
+    await nextTick();
 
-    // 渲染 ECharts
-    if (heatmapRef.value) {
-      myChart = markRaw(echarts.init(heatmapRef.value));
-      const option = {
-        tooltip: {
-          position: 'top',
-          backgroundColor: 'rgba(18,18,36,0.9)',
-          borderColor: 'rgba(124,111,247,0.5)',
-          textStyle: { color: '#e8e8f0' },
-          formatter: function (p) {
-            const format = echarts.time.format(p.data[0], '{yyyy}-{MM}-{dd}', false);
-            return format + ' : ' + p.data[1] + ' 个节点';
-          }
-        },
-        visualMap: {
-          min: 0,
-          max: 150, // 颜色最深对应的复习量阈值，可调
-          calculable: true,
-          orient: 'horizontal',
-          left: 'center',
-          bottom: 0,
-          inRange: {
-            // Nebula 风格渐变：极暗紫 -> 明亮紫罗兰 -> 耀眼浅紫
-            color: ['rgba(255,255,255,0.05)', '#5b4fcf', '#7c6ff7', '#a99df9']
-          },
-          textStyle: { color: '#9898b4' }
-        },
-        calendar: [{
-          range: getYearRange(),
-          cellSize: ['auto', 20],
-          right: 20,
-          left: 40,
-          top: 40,
-          itemStyle: {
-            color: 'rgba(255,255,255,0.02)',
-            borderWidth: 3,
-            borderColor: 'transparent' // 通过透明边框制造间距感
-          },
-          splitLine: { show: false },
-          yearLabel: { show: false },
-          dayLabel: { nameMap: 'ZH', color: '#9898b4' },
-          monthLabel: { nameMap: 'ZH', color: '#9898b4' }
-        }],
-        series: [{
-          type: 'heatmap',
-          coordinateSystem: 'calendar',
-          data: chartData,
-          itemStyle: { borderRadius: 4 } // 高椭圆角
-        }]
-      };
-      myChart.setOption(option);
+    if (!myChart && heatmapRef.value) {
+      myChart = echarts.init(heatmapRef.value);
     }
-  } catch (error) {
-    console.error("加载热力引擎失败", error);
-  }
-};
 
-// 监听窗口大小变化以自适应
-const handleResize = () => {
-  if (myChart) myChart.resize();
+    const option = {
+      tooltip: {
+        position: 'top',
+        backgroundColor: 'rgba(18,18,36,0.9)',
+        borderColor: 'rgba(124,111,247,0.5)',
+        textStyle: { color: '#e8e8f0' },
+        formatter: (p) => `${p.value[0]}<br/>激活突触: ${p.value[1]} 次`
+      },
+      visualMap: {
+        show: false, // 隐藏原生 legend，改用我们自定义的 CSS legend
+        min: 0, max: 20,
+        inRange: { color: ['rgba(255,255,255,0.05)', '#4c3fc4', '#7c6ff7', '#a99df9', '#ffffff'] }
+      },
+      calendar: {
+        top: 40, bottom: 20, left: 40, right: 10,
+        range: new Date().getFullYear(),
+        cellSize: [22, 22], // 🌟 拉大宽度，变成正方形大格点
+        splitLine: { show: false },
+        itemStyle: { color: 'transparent', borderWidth: 3, borderColor: '#06060f' },
+        yearLabel: { show: false },
+        dayLabel: { nameMap: 'ZH', color: '#6b6b85', fontSize: 12 },
+        monthLabel: { nameMap: 'ZH', color: '#9898b4', fontSize: 12, margin: 10 }
+      },
+      series: {
+        type: 'heatmap',
+        coordinateSystem: 'calendar',
+        data: data,
+        itemStyle: { borderRadius: 4 }
+      }
+    };
+
+    myChart.setOption(option);
+  } catch (e) {
+    console.error("加载数据失败:", e);
+  }
 };
 
 onMounted(() => {
   initChart();
-  window.addEventListener('resize', handleResize);
+  resizeObserver = new ResizeObserver(() => myChart?.resize());
+  if (heatmapRef.value) resizeObserver.observe(heatmapRef.value);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize);
-  if (myChart) myChart.dispose();
+  resizeObserver?.disconnect();
+  myChart?.dispose();
 });
 </script>
 
 <style scoped>
-.glass-app-container{min-height:100vh;background:transparent;color:#e8e8f0;font-family:'Inter',system-ui,sans-serif;box-sizing:border-box;display:flex;flex-direction:column;}
-.stats-container{padding:0;}
-.study-header{height:70px;display:flex;justify-content:space-between;align-items:center;padding:0 40px;background:rgba(18,18,36,0.4);border-bottom:1px solid rgba(255,255,255,0.05);backdrop-filter:blur(20px);z-index:10;}
-.header-left-actions{display:flex;align-items:center;gap:16px;}
-.btn-icon-blur{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#9898b4;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.3s;}
-.btn-icon-blur:hover{background:rgba(124,111,247,0.15);color:#7c6ff7;border-color:rgba(124,111,247,0.3);transform:translateX(-2px);}
-.deck-title-badge{background:rgba(124,111,247,0.15);color:#a99df9;border:1px solid rgba(124,111,247,0.3);padding:6px 14px;border-radius:50px;font-size:0.85rem;font-weight:600;display:flex;align-items:center;}
-.stats-main{flex:1;display:flex;justify-content:center;align-items:center;padding:40px;}
-.glass-panel{background:rgba(18,18,36,0.8);backdrop-filter:blur(40px) saturate(140%);border:1px solid rgba(255,255,255,0.1);border-radius:24px;box-shadow:0 25px 80px rgba(0,0,0,0.6);}
-.chart-panel{width:100%;max-width:1000px;padding:40px;display:flex;flex-direction:column;}
-.panel-header{margin-bottom:30px;text-align:center;}
-.panel-header h2{margin:0 0 8px;font-size:1.8rem;color:#fff;}
-.subtitle{margin:0;color:#9898b4;font-size:0.95rem;}
-.echarts-container{width:100%;height:300px;}
-.stats-summary{display:flex;justify-content:center;gap:60px;margin-top:20px;padding-top:30px;border-top:1px solid rgba(255,255,255,0.05);}
-.summary-item{display:flex;flex-direction:column;align-items:center;}
-.summary-value{font-size:2.5rem;font-weight:800;color:#7c6ff7;text-shadow:0 0 20px rgba(124,111,247,0.4);line-height:1;}
-.summary-label{margin-top:8px;font-size:0.85rem;color:#6b6b85;text-transform:uppercase;letter-spacing:1px;}
+/* 一行一类名压缩 CSS */
+.stats-page-wrapper{padding:40px 60px;min-height:100vh;background:transparent;display:flex;flex-direction:column;gap:30px;box-sizing:border-box;}
+.summary-container{display:flex;gap:24px;}
+.stat-card{flex:1;height:120px;display:flex;align-items:center;padding:0 30px;gap:24px;background:rgba(18,18,36,0.65);backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,0.3);}
+.card-icon-box{width:60px;height:60px;background:rgba(124,111,247,0.15);border-radius:16px;display:flex;align-items:center;justify-content:center;color:#7c6ff7;}
+.card-icon-box .material-icons{font-size:32px;text-shadow:0 0 15px #7c6ff7;}
+.streak-icon{background:rgba(245,108,108,0.15);color:#f56c6c;}
+.streak-icon .material-icons{text-shadow:0 0 15px #f56c6c;}
+.number-row{display:flex;align-items:baseline;gap:8px;}
+.value{font-size:42px;font-weight:800;color:#fff;letter-spacing:-1px;}
+.unit{font-size:14px;color:#6b6b85;font-weight:700;letter-spacing:1px;}
+.label{font-size:14px;color:#9898b4;margin-top:4px;}
+.main-chart-section{position:relative;padding:40px;background:rgba(18,18,36,0.65);backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,0.08);border-radius:24px;}
+.chart-header{text-align:center;margin-bottom:20px;}
+.chart-header h2{font-size:24px;color:#fff;margin-bottom:8px;font-weight:700;}
+.chart-header p{color:#6b6b85;font-size:14px;}
+.decoration-wave{position:absolute;right:40px;top:40px;width:100px;opacity:0.6;}
+.chart-scroll-box{width:100%;overflow-x:auto;padding-bottom:10px;}
+.heatmap-chart{width:1200px;height:280px;margin:0 auto;}
+.visual-map-legend{display:flex;align-items:center;justify-content:center;gap:15px;margin-top:20px;color:#6b6b85;font-size:12px;font-weight:700;}
+.legend-bar{width:180px;height:10px;border-radius:10px;background:linear-gradient(90deg,rgba(255,255,255,0.05),#4c3fc4,#7c6ff7,#a99df9,#ffffff);}
+.custom-scrollbar::-webkit-scrollbar{height:6px;width:6px;}
+.custom-scrollbar::-webkit-scrollbar-thumb{background:rgba(124,111,247,0.3);border-radius:10px;}
+
+
+/* 🌟 核心修改 1：让整个卡片容器负责水平绝对居中 */
+.stat-card {
+  flex: 1;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center; /* 【关键新增】让内部的所有元素（图标+文字）作为一个整体居中 */
+  padding: 0 30px;
+  gap: 24px; /* 图标和文字之间的间距，可根据喜好微调 */
+
+  /* 以下保留你原有的玻璃态属性 */
+  background: rgba(18,18,36,0.65);
+  backdrop-filter: blur(40px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+/* 🌟 核心修改 2：去除 flex: 1，让文字区紧紧跟随在图标旁边 */
+.card-info {
+  /* 【关键删除】不要写 flex: 1，否则会再次把图标推向左侧 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* 🌟 核心修改 3：数字、单位、标签保留默认左对齐，确保与图标形成完美的视觉块 */
+.number-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.label {
+  font-size: 14px;
+  color: #9898b4;
+  margin-top: 4px;
+}
 </style>

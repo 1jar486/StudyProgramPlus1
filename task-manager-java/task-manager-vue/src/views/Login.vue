@@ -180,6 +180,7 @@ const togglePasswordVisibility = () => {
 };
 
 const handleLogin = async () => {
+  // 1. 表单校验与 UI 动画反馈（保持原样）
   if (!form.value.username || !form.value.password) {
     showToast("请填写完整！", 'error');
     if (!form.value.username) shakeElement(usernameInputRef.value);
@@ -196,12 +197,34 @@ const handleLogin = async () => {
       password: form.value.password
     });
 
-    if (res && res.token && res.token.includes("SUCCESS_TOKEN_FOR_")) {
-      localStorage.setItem('token', res.token);
+    // 为了平滑过渡，兼容后端返回新字段 accessToken 或老字段 token
+    const tokenStr = res.accessToken || res.token;
+
+    // 校验令牌是否存在且包含有效标识
+    if (tokenStr && (tokenStr.includes("SUCCESS_TOKEN_FOR_") || tokenStr.startsWith("SUCCESS_TOKEN"))) {
+
+      // 1. 存储短效访问令牌 (同时保留 token 键，防止系统中其他地方硬编码读取)
+      localStorage.setItem('accessToken', tokenStr);
+      localStorage.setItem('token', tokenStr);
+
+      // 2. 如果后端返回了长效刷新令牌，将其存入本地
+      if (res.refreshToken) {
+        localStorage.setItem('refreshToken', res.refreshToken);
+      }
+
+      // 🌟 3. 核心新增：将后端随登录接口一同传回的用户唯一 ID 存入浏览器本地缓存
+      // 这行代码是整个“前端静默降维翻译”魔法的关键火种！
+      if (res.userId) {
+        localStorage.setItem('userId', res.userId);
+      }
+
+      // UI 成功反馈与跳转
       btnSuccess.value = true;
       showToast("登录成功！", 'success');
       setTimeout(async () => { await router.push('/tasks'); }, 800);
+
     } else {
+      // 处理后端返回错误信息的情况
       showToast(res || "用户名或密码错误", 'error');
     }
   } catch (error) {

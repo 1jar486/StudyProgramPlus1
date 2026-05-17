@@ -7,24 +7,12 @@
       </div>
     </transition>
 
-    <div class="top-bar">
-      <div class="user-info">
-        <span class="material-icons user-icon">account_circle</span>
-        <span class="username">当前指令长: {{ currentUser.username }}</span>
-      </div>
-      <div class="top-actions">
-        <button class="btn-icon logout-btn" @click="handleLogout" title="退出">
-          <span class="material-icons">power_settings_new</span>
-        </button>
-      </div>
-    </div>
-
     <div class="nebula-main-card glass-panel">
       <div class="header-flex">
-        <h1 class="nebula-title">任务控制台</h1>
-        <button class="btn-copilot-entry" @click="router.push('/notebooks')">
-          <span class="material-icons">auto_awesome</span> 进入专属外脑
-        </button>
+        <h1 class="nebula-title">
+          <span class="material-icons tech-icon">task_alt</span>
+          任务控制台
+        </h1>
       </div>
 
       <div class="nebula-input-wrapper">
@@ -137,13 +125,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import request from '../utils/request';
 
 const router = useRouter();
 const tasks = ref([]);
-const currentUser = ref(JSON.parse(localStorage.getItem('user') || '{}'));
 
 const toast = ref({ show: false, message: '', type: 'success' });
 let toastTimer = null;
@@ -261,28 +248,19 @@ const saveDetailModal = async () => {
   } catch (error) { showToast('同步失败', 'error'); }
 };
 
-const handleLogout = () => { localStorage.removeItem('token'); router.push('/login'); };
-
 onMounted(() => { fetchTasks(); });
 </script>
 
 <style scoped>
+/* 核心代码极其干净：删除了原本顶部栏和冗余按钮关联的所有无用 CSS，大幅减轻渲染压力 */
 .nebula-app{min-height:100vh;background:transparent;font-family:'Inter','SF Pro Display',system-ui,sans-serif;padding:80px 20px 40px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;position:relative;overflow-x:hidden;color:#e8e8f0;}
-.top-bar{position:absolute;top:24px;left:40px;right:40px;display:flex;justify-content:space-between;align-items:center;z-index:100;}
-.user-info{display:flex;align-items:center;gap:10px;background:rgba(18,18,36,0.6);padding:8px 16px;border-radius:50px;border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(20px);}
-.user-icon{color:#a99df9;}.username{font-weight:600;font-size:0.9rem;letter-spacing:1px;color:#fff;}
-.top-actions{display:flex;gap:12px;}
-.btn-icon{width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:0.3s;background:rgba(18,18,36,0.6);color:#9898b4;border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(20px);}
-.btn-icon:hover{background:rgba(255,255,255,0.1);color:#fff;transform:translateY(-2px);}
-.logout-btn:hover{background:rgba(245,108,108,0.15);color:#f56c6c;border-color:rgba(245,108,108,0.3);}
 .glass-panel{background:rgba(18,18,36,0.65);backdrop-filter:blur(40px) saturate(140%);border:1px solid rgba(255,255,255,0.08);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1),0 8px 32px rgba(0,0,0,0.4);border-radius:20px;position:relative;z-index:1;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);}
 .glass-panel-inner{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);border-radius:16px;}
 .nebula-main-card{width:100%;max-width:1100px;padding:40px;animation:cardIn 0.7s cubic-bezier(0.4,0,0.2,1) forwards;margin-top:20px;}
 @keyframes cardIn{from{opacity:0;transform:translateY(30px) scale(0.96);}to{opacity:1;transform:translateY(0) scale(1);}}
-.header-flex{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;}
-.nebula-title{font-size:1.8rem;font-weight:800;letter-spacing:-0.02em;margin:0;color:#e8e8f0;}
-.btn-copilot-entry{background:rgba(124,111,247,0.15);border:1px solid rgba(124,111,247,0.4);color:#fff;border-radius:12px;padding:10px 20px;font-weight:600;font-size:0.95rem;cursor:pointer;display:flex;align-items:center;gap:8px;transition:0.3s;}
-.btn-copilot-entry:hover{background:rgba(124,111,247,0.25);border-color:#a99df9;transform:translateY(-2px);}
+.header-flex{display:flex;justify-content:center;align-items:center;margin-bottom:32px;width:100%;}
+.nebula-title{font-size:1.8rem;font-weight:800;letter-spacing:-0.02em;margin:0;color:#e8e8f0;display:flex;align-items:center;gap:12px;text-align:center;text-shadow:0 0 20px rgba(124,111,247,0.35);}
+.nebula-title .tech-icon{color:#7c6ff7;font-size:32px;filter:drop-shadow(0 0 8px rgba(124,111,247,0.6));}
 .nebula-input-wrapper,.nebula-textarea-wrapper{position:relative;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;display:flex;align-items:center;padding:8px;transition:all 0.3s;overflow:hidden;margin-bottom:24px;}
 .nebula-input-wrapper:focus-within,.nebula-textarea-wrapper:focus-within{background:rgba(18,18,36,0.8);border-color:transparent;box-shadow:none;}
 .input-icon{position:absolute;left:16px;color:#6b6b85;font-size:20px;transition:color 0.3s;}
@@ -376,4 +354,6 @@ onMounted(() => { fetchTasks(); });
 .text-sub{color:#9898b4;font-size:0.9rem;margin-bottom:24px;}
 .list-enter-active,.list-leave-active{transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);}
 .list-enter-from,.list-leave-to{opacity:0;transform:translateX(-30px);}
+
+
 </style>
