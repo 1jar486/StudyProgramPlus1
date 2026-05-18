@@ -79,7 +79,8 @@ const calculateStreak = (data) => {
   for (let i = 1; i < sortedDates.length; i++) {
     const prev = new Date(sortedDates[i-1]);
     const curr = new Date(sortedDates[i]);
-    const diff = (curr - prev) / (1000 * 60 * 60 * 24);
+    // 🛡️ 修复：增加 Math.round 抹平时区夏令时偏差
+    const diff = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
 
     if (diff === 1) {
       currentStreak++;
@@ -107,6 +108,16 @@ const initChart = async () => {
       myChart = echarts.init(heatmapRef.value);
     }
 
+    // ================= 👇 刚才的修复代码加在这里 👇 =================
+    // 计算滚动的 365 天区间
+    const today = new Date();
+    const lastYear = new Date();
+    lastYear.setFullYear(today.getFullYear() - 1);
+
+    // 转换为 yyyy-MM-dd 格式
+    const formatDate = (date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    // ==============================================================
+
     const option = {
       tooltip: {
         position: 'top',
@@ -116,14 +127,15 @@ const initChart = async () => {
         formatter: (p) => `${p.value[0]}<br/>激活突触: ${p.value[1]} 次`
       },
       visualMap: {
-        show: false, // 隐藏原生 legend，改用我们自定义的 CSS legend
+        show: false,
         min: 0, max: 20,
         inRange: { color: ['rgba(255,255,255,0.05)', '#4c3fc4', '#7c6ff7', '#a99df9', '#ffffff'] }
       },
       calendar: {
         top: 40, bottom: 20, left: 40, right: 10,
-        range: new Date().getFullYear(),
-        cellSize: [22, 22], // 🌟 拉大宽度，变成正方形大格点
+        // 🌟 修复：应用刚刚计算好的滚动日期范围
+        range: [formatDate(lastYear), formatDate(today)],
+        cellSize: [22, 22],
         splitLine: { show: false },
         itemStyle: { color: 'transparent', borderWidth: 3, borderColor: '#06060f' },
         yearLabel: { show: false },
@@ -157,67 +169,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 一行一类名压缩 CSS */
-.stats-page-wrapper{padding:40px 60px;min-height:100vh;background:transparent;display:flex;flex-direction:column;gap:30px;box-sizing:border-box;}
-.summary-container{display:flex;gap:24px;}
-.stat-card{flex:1;height:120px;display:flex;align-items:center;padding:0 30px;gap:24px;background:rgba(18,18,36,0.65);backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,0.3);}
-.card-icon-box{width:60px;height:60px;background:rgba(124,111,247,0.15);border-radius:16px;display:flex;align-items:center;justify-content:center;color:#7c6ff7;}
-.card-icon-box .material-icons{font-size:32px;text-shadow:0 0 15px #7c6ff7;}
-.streak-icon{background:rgba(245,108,108,0.15);color:#f56c6c;}
-.streak-icon .material-icons{text-shadow:0 0 15px #f56c6c;}
-.number-row{display:flex;align-items:baseline;gap:8px;}
-.value{font-size:42px;font-weight:800;color:#fff;letter-spacing:-1px;}
-.unit{font-size:14px;color:#6b6b85;font-weight:700;letter-spacing:1px;}
-.label{font-size:14px;color:#9898b4;margin-top:4px;}
-.main-chart-section{position:relative;padding:40px;background:rgba(18,18,36,0.65);backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,0.08);border-radius:24px;}
-.chart-header{text-align:center;margin-bottom:20px;}
-.chart-header h2{font-size:24px;color:#fff;margin-bottom:8px;font-weight:700;}
-.chart-header p{color:#6b6b85;font-size:14px;}
-.decoration-wave{position:absolute;right:40px;top:40px;width:100px;opacity:0.6;}
-.chart-scroll-box{width:100%;overflow-x:auto;padding-bottom:10px;}
-.heatmap-chart{width:1200px;height:280px;margin:0 auto;}
-.visual-map-legend{display:flex;align-items:center;justify-content:center;gap:15px;margin-top:20px;color:#6b6b85;font-size:12px;font-weight:700;}
-.legend-bar{width:180px;height:10px;border-radius:10px;background:linear-gradient(90deg,rgba(255,255,255,0.05),#4c3fc4,#7c6ff7,#a99df9,#ffffff);}
-.custom-scrollbar::-webkit-scrollbar{height:6px;width:6px;}
-.custom-scrollbar::-webkit-scrollbar-thumb{background:rgba(124,111,247,0.3);border-radius:10px;}
-
-
-/* 🌟 核心修改 1：让整个卡片容器负责水平绝对居中 */
-.stat-card {
-  flex: 1;
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center; /* 【关键新增】让内部的所有元素（图标+文字）作为一个整体居中 */
-  padding: 0 30px;
-  gap: 24px; /* 图标和文字之间的间距，可根据喜好微调 */
-
-  /* 以下保留你原有的玻璃态属性 */
-  background: rgba(18,18,36,0.65);
-  backdrop-filter: blur(40px);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
-
-/* 🌟 核心修改 2：去除 flex: 1，让文字区紧紧跟随在图标旁边 */
-.card-info {
-  /* 【关键删除】不要写 flex: 1，否则会再次把图标推向左侧 */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-/* 🌟 核心修改 3：数字、单位、标签保留默认左对齐，确保与图标形成完美的视觉块 */
-.number-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.label {
-  font-size: 14px;
-  color: #9898b4;
-  margin-top: 4px;
-}
+.stats-page-wrapper { padding: 40px 60px; min-height: 100vh; background: transparent; display: flex; flex-direction: column; gap: 30px; box-sizing: border-box; }
+.summary-container { display: flex; gap: 24px; }
+/* 🌟 已为你合并修复：绝对居中，去除多余重复代码 */
+.stat-card { flex: 1; height: 120px; display: flex; align-items: center; justify-content: center; padding: 0 30px; gap: 24px; background: rgba(18, 18, 36, 0.65); backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); }
+.card-icon-box { width: 60px; height: 60px; background: rgba(124, 111, 247, 0.15); border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #7c6ff7; }
+.card-icon-box .material-icons { font-size: 32px; text-shadow: 0 0 15px #7c6ff7; }
+.streak-icon { background: rgba(245, 108, 108, 0.15); color: #f56c6c; }
+.streak-icon .material-icons { text-shadow: 0 0 15px #f56c6c; }
+.card-info { display: flex; flex-direction: column; justify-content: center; }
+.number-row { display: flex; align-items: baseline; gap: 8px; }
+.value { font-size: 42px; font-weight: 800; color: #fff; letter-spacing: -1px; }
+.unit { font-size: 14px; color: #6b6b85; font-weight: 700; letter-spacing: 1px; }
+.label { font-size: 14px; color: #9898b4; margin-top: 4px; }
+.main-chart-section { position: relative; padding: 40px; background: rgba(18, 18, 36, 0.65); backdrop-filter: blur(40px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; }
+.chart-header { text-align: center; margin-bottom: 20px; }
+.chart-header h2 { font-size: 24px; color: #fff; margin-bottom: 8px; font-weight: 700; }
+.chart-header p { color: #6b6b85; font-size: 14px; }
+.decoration-wave { position: absolute; right: 40px; top: 40px; width: 100px; opacity: 0.6; }
+.chart-scroll-box { width: 100%; overflow-x: auto; padding-bottom: 10px; }
+.heatmap-chart { width: 1200px; height: 280px; margin: 0 auto; }
+.visual-map-legend { display: flex; align-items: center; justify-content: center; gap: 15px; margin-top: 20px; color: #6b6b85; font-size: 12px; font-weight: 700; }
+.legend-bar { width: 180px; height: 10px; border-radius: 10px; background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), #4c3fc4, #7c6ff7, #a99df9, #ffffff); }
+.custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(124, 111, 247, 0.3); border-radius: 10px; }
 </style>

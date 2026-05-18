@@ -39,13 +39,13 @@ public class FlashcardController {
             @PathVariable Integer deckId,
             @RequestParam(defaultValue = "20") int newLimit,      // 默认每天20张新卡
             @RequestParam(defaultValue = "100") int reviewLimit,  // 默认每天100张复习
+            @RequestParam(defaultValue = "standard") String mode, // 🌟 新增：接住前端传来的模式参数
             @RequestHeader("Authorization") String token) {
 
-        // 1. 从前端传来的 Token 中解析出真实的 userId
         Long userId = getUserIdFromToken(token);
 
-        // 2. 将解析出来的 userId 传给 Service 层，去动态计算该用户的限额
-        return flashcardService.getDueCards(deckId, newLimit, reviewLimit, userId);
+        // 将 mode 参数也一并传给 Service 层去处理
+        return flashcardService.getDueCards(deckId, newLimit, reviewLimit, userId, mode);
     }
 
     @PostMapping

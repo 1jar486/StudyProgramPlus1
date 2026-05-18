@@ -6,27 +6,47 @@ import java.util.List;
 
 @Mapper
 public interface ChatMessageMapper {
-    // 保存一条对话记录，补全 sources 字段
+
+    // ================== 【保留你原有的旧方法】 ==================
     @Insert("INSERT INTO chat_message (notebook_id, role, content, sources) VALUES (#{notebookId}, #{role}, #{content}, #{sources})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(ChatMessage message);
 
-    // 查出某个笔记本下的所有对话历史，按时间正序排列（保证对话一问一答的顺序）
-    @Select("SELECT * FROM chat_message WHERE notebook_id = #{notebookId} ORDER BY created_time ASC")
+    @Select("SELECT * FROM chat_message WHERE notebook_id = #{notebookId} ORDER BY id ASC")
     List<ChatMessage> findByNotebookId(Integer notebookId);
 
-    // 清空某个笔记本的对话记录（用于删除笔记本时级联删除）
+    @Select("SELECT * FROM chat_message WHERE notebook_id = #{notebookId} ORDER BY id DESC LIMIT 10")
+    List<ChatMessage> findRecentHistoryByNotebookId(Integer notebookId);
+
+    // 👇 🌟 被我误删的级联删除方法，现在给它请回来了！
     @Delete("DELETE FROM chat_message WHERE notebook_id = #{notebookId}")
     void deleteByNotebookId(@Param("notebookId") Integer notebookId);
 
-    @Select("""
-        SELECT * FROM (
-            SELECT * FROM chat_message 
-            WHERE notebook_id = #{notebookId} 
-            ORDER BY created_time DESC 
-            LIMIT 10
-        ) sub 
-        ORDER BY created_time ASC
-    """)
-    List<ChatMessage> findRecentHistoryByNotebookId(@Param("notebookId") Integer notebookId);
+
+    // ================== 【本次新增：支持 Notion 多会话的核心方法】 ==================
+
+    // 1. 插入一条带有 sessionId 的新消息
+    @Insert("INSERT INTO chat_message (notebook_id, session_id, role, content, sources) VALUES (#{notebookId}, #{sessionId}, #{role}, #{content}, #{sources})")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    void insertMessage(ChatMessage message);
+
+    // 2. 截断术：只查当前会话下的最新 10 条（防大模型爆仓报错）
+    @Select("SELECT * FROM (" +
+            "  SELECT * FROM chat_message WHERE session_id = #{sessionId} ORDER BY id DESC LIMIT 10" +
+            ") sub ORDER BY id ASC")
+    List<ChatMessage> findRecentHistoryBySessionId(Integer sessionId);
+
+    // 3. 查出某个历史会话的所有完整聊天记录（用于前端点开历史面板时展示全量数据）
+    @Select("SELECT * FROM chat_message WHERE session_id = #{sessionId} ORDER BY id ASC")
+    List<ChatMessage> findAllBySessionId(Integer sessionId);
+
+    // ================== 【新增：定期清理专属方法 (完美版)】 ==================
+    @Delete("DELETE cm FROM chat_message cm " +
+            "INNER JOIN chat_session cs ON cm.session_id = cs.id " +
+            "WHERE IFNULL(cs.updated_at, cs.created_at) < DATE_SUB(NOW(), INTERVAL 3 MONTH)")
+    void deleteMessagesOfOldSessions();
+
+    // ================== 【本次新增：级联删除消息】 ==================
+    @Delete("DELETE FROM chat_message WHERE session_id = #{sessionId}")
+    void deleteBySessionId(Integer sessionId);
 }

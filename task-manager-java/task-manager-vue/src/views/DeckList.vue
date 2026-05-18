@@ -17,18 +17,6 @@
         <p class="nebula-subtitle">基于 SM-2 智能算法的专属知识记忆库</p >
       </div>
 
-      <div class="header-right" style="display: flex; justify-content: flex-end; align-items: center; gap: 20px;">
-
-        <button class="btn-nebula-outline" @click="$router.push('/stats')">
-          <span class="material-icons">data_usage</span>
-          查看记忆热力图
-        </button>
-
-        <button class="btn-nebula-outline" @click="router.push('/tasks')">
-          <span class="material-icons">dashboard</span>返回中枢
-        </button>
-
-      </div>
     </header>
 
     <div class="notebook-grid">
@@ -60,7 +48,7 @@
     </div>
 
     <div class="nebula-action-float">
-      <button class="btn-nebula-primary btn-huge" @click="showCreateModal = true">
+      <button class="btn-nebula-primary btn-huge" @click="openCreateModal">
         <span class="material-icons">add_box</span>构建新牌组
       </button>
     </div>
@@ -225,6 +213,12 @@ const goToDeckManager = (deckId) => {
   router.push(`/decks/${deckId}/cards`);
 };
 
+// 🛡️ 修复：新增专门的方法，每次打开前强制清空数据
+const openCreateModal = () => {
+  newDeckData.value = { name: '', description: '' };
+  showCreateModal.value = true;
+};
+
 onMounted(() => {
   fetchDecks();
 });
@@ -265,7 +259,7 @@ onMounted(() => {
 .btn-huge { padding: 18px 40px; font-size: 1.1rem; border-radius: 50px; }
 .nebula-empty-state { grid-column: 1 / -1; text-align: center; padding: 100px 0; color: #6b6b85; }
 .empty-orb { width: 120px; height: 120px; background: radial-gradient(circle, rgba(124, 111, 247, 0.1) 0%, transparent 70%); margin: 0 auto 20px; border-radius: 50%; border: 1px dashed rgba(124, 111, 247, 0.3); }
-.toast-wrapper { position: fixed; top: 28px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 50px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; z-index: 10000; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 12px 40px rgba(0,0,0,0.5); background: rgba(18,18,36,0.85); }
+.toast-wrapper { position: fixed; top: 28px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 50px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; z-index: 99999; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 12px 40px rgba(0,0,0,0.5); background: rgba(18,18,36,0.85); }
 .toast-success { border-color: rgba(74,222,128,0.4); color: #4ade80; }
 .toast-error { border-color: rgba(245,108,108,0.4); color: #f56c6c; }
 .toast-fade-enter-active, .toast-fade-leave-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }

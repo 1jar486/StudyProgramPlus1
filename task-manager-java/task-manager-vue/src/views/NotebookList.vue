@@ -14,12 +14,6 @@
         </h1>
         <p class="nebula-subtitle">探索与构建你的数字第二大脑</p >
       </div>
-      <div class="header-right">
-        <button class="btn-nebula-outline" @click="router.push('/tasks')">
-          <span class="material-icons">dashboard</span>
-          返回任务控制台
-        </button>
-      </div>
     </header>
 
     <div class="nebula-tabs-container">
@@ -29,7 +23,6 @@
       </div>
       <div class="nebula-tab">全部档案</div>
       <div class="nebula-tab">星标标记</div>
-      <div class="tabs-line"></div>
     </div>
 
     <div class="notebook-grid">
@@ -72,7 +65,7 @@
     </div>
 
     <div class="nebula-action-float">
-      <button class="btn-nebula-primary btn-huge" @click="showCreateModal = true">
+      <button class="btn-nebula-primary btn-huge" @click="openCreateModal">
         <span class="material-icons">add_circle</span>
         构建新思绪空间
       </button>
@@ -260,6 +253,11 @@ const executeRename = async () => {
   }
 };
 
+// 🛡️ 修复：新增专门的方法来打开弹窗，清空上一次的残影
+const openCreateModal = () => {
+  newNotebookName.value = '';
+  showCreateModal.value = true;
+};
 
 onMounted(() => {
   fetchNotebooks();
@@ -313,10 +311,10 @@ onMounted(() => {
 .btn-huge { padding: 18px 40px; font-size: 1.1rem; border-radius: 50px; }
 .nebula-empty-state { grid-column: 1 / -1; text-align: center; padding: 100px 0; color: #6b6b85; }
 .empty-orb { width: 120px; height: 120px; background: radial-gradient(circle, rgba(124, 111, 247, 0.1) 0%, transparent 70%); margin: 0 auto 20px; border-radius: 50%; border: 1px dashed rgba(124, 111, 247, 0.3); }
-.glass-panel { background: rgba(18, 18, 36, 0.85); backdrop-filter: blur(40px) saturate(140%); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 40px; box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6); }
+
 
 /* 6. Toast 全局提示框 */
-.toast-wrapper { position: fixed; top: 28px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 50px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; z-index: 10000; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 12px 40px rgba(0,0,0,0.5); background: rgba(18,18,36,0.85); }
+.toast-wrapper { position: fixed; top: 28px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 50px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; z-index: 99999; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 12px 40px rgba(0,0,0,0.5); background: rgba(18,18,36,0.85); }
 .toast-success { border-color: rgba(74,222,128,0.4); color: #4ade80; }
 .toast-error { border-color: rgba(245,108,108,0.4); color: #f56c6c; }
 .toast-fade-enter-active, .toast-fade-leave-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }

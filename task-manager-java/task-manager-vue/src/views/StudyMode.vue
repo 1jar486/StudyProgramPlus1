@@ -26,6 +26,27 @@
       </div>
 
       <div class="header-right-actions">
+        <div class="nebula-dropdown" v-click-outside="closeDropdown">
+          <div class="dropdown-trigger" @click="toggleDropdown" :class="{ 'active': isDropdownOpen }">
+            <span class="material-icons trigger-icon">layers</span>
+            <span class="trigger-text">{{ currentModeLabel }}</span>
+            <span class="material-icons arrow-icon" :class="{ 'rotated': isDropdownOpen }">expand_more</span>
+          </div>
+          <transition name="dropdown-fade">
+            <ul class="dropdown-menu glass-panel" v-if="isDropdownOpen">
+              <li
+                  v-for="option in modeOptions"
+                  :key="option.value"
+                  :class="{ 'selected': selectedMode === option.value }"
+                  @click="selectMode(option.value)"
+              >
+                <span class="material-icons opt-icon">{{ option.icon }}</span>
+                {{ option.label }}
+              </li>
+            </ul>
+          </transition>
+        </div>
+
         <button class="btn-icon-blur" :class="{'disabled': undoStack.length === 0}" @click="handleUndo" title="撤销上一步 (Ctrl+Z)">
           <span class="material-icons">undo</span>
         </button>
@@ -126,17 +147,35 @@ import { marked } from 'marked';
 import hljs from 'highlight.js';
 import DOMPurify from 'dompurify';
 import 'highlight.js/styles/atom-one-dark.css';
+import { watch } from 'vue'; // 确保顶部 import 了 watch
+// 负荷设置状态
+const showSettings = ref(false);
+const newLimit = ref(parseInt(localStorage.getItem('anki_new_limit') || '20'));
+const reviewLimit = ref(parseInt(localStorage.getItem('anki_review_limit') || '100'));
+const tempNewLimit = ref(newLimit.value);
+const tempReviewLimit = ref(reviewLimit.value);
 
-// Markdown 全局配置
+const isSubmitting = ref(false);
+
+const toast = ref({ show: false, message: '', type: 'success' });
+let toastTimer = null;
+
+// 🛡️ 修复：每次打开面板时，强制读取真实配置，清空上一次的残留输入
+watch(showSettings, (newVal) => {
+  if (newVal) {
+    tempNewLimit.value = newLimit.value;
+    tempReviewLimit.value = reviewLimit.value;
+  }
+});
+
 marked.setOptions({
   highlight: function(code, lang) {
     const language = hljs.getLanguage(lang) ? lang : 'plaintext';
     return hljs.highlight(code, { language }).value;
   },
-  breaks: true // 支持回车换行
+  breaks: true
 });
 
-// 【安全升级】利用 DOMPurify 彻底过滤恶意脚本，防止 XSS 攻击
 const renderMd = (text) => DOMPurify.sanitize(marked(text || ''));
 
 const route = useRoute();
@@ -149,28 +188,40 @@ const currentIndex = ref(0);
 const isFlipped = ref(false);
 const isFinished = ref(false);
 const todayReviewedCount = ref(0);
-const undoStack = ref([]); // 撤销栈
+const undoStack = ref([]);
 
-// 负荷设置状态
-const showSettings = ref(false);
-const newLimit = ref(parseInt(localStorage.getItem('anki_new_limit') || '20'));
-const reviewLimit = ref(parseInt(localStorage.getItem('anki_review_limit') || '100'));
-const tempNewLimit = ref(newLimit.value);
-const tempReviewLimit = ref(reviewLimit.value);
+// 🌟 核心新增：下拉框专用的状态和选项配置（支持绑定你原有的变量逻辑）
+const isDropdownOpen = ref(false);
+const selectedMode = ref('standard');
+const modeOptions = ref([
+  { value: 'standard', label: '标准记忆模式', icon: 'psychology' },
+  { value: 'rapid', label: '快速突破模式', icon: 'bolt' },
+  { value: 'difficult', label: '重难点轰炸', icon: 'gavel' }
+]);
 
-// 【防抖升级】状态锁，防止狂按键盘发出多次重复请求
-const isSubmitting = ref(false);
+const currentModeLabel = computed(() => {
+  const matched = modeOptions.value.find(opt => opt.value === selectedMode.value);
+  return matched ? matched.label : '记忆模式';
+});
 
-// Toast 提示
-const toast = ref({ show: false, message: '', type: 'success' });
-let toastTimer = null;
+const toggleDropdown = () => { isDropdownOpen.value = !isDropdownOpen.value; };
+const closeDropdown = () => { isDropdownOpen.value = false; };
+const selectMode = (val) => {
+  selectedMode.value = val;
+  isDropdownOpen.value = false;
+  showToast(`记忆序列已切换至：${currentModeLabel.value}`, 'success');
+
+  // 🌟 核心改动：切换模式后，立刻命令引擎重新向后端拉取特定模式的卡片！
+  initData();
+};
+
+
 const showToast = (message, type = 'success') => {
   if (toastTimer) clearTimeout(toastTimer);
   toast.value = { show: true, message, type };
   toastTimer = setTimeout(() => { toast.value.show = false; }, 2200);
 };
 
-// 计算属性
 const totalCards = computed(() => cards.value.length);
 const currentCard = computed(() => cards.value[currentIndex.value] || null);
 const progressPercentage = computed(() => {
@@ -178,16 +229,15 @@ const progressPercentage = computed(() => {
   return (currentIndex.value / totalCards.value) * 100;
 });
 
-// 初始化数据拉取 (拼接上负荷限制参数)
 const initData = async () => {
   try {
+    // 🌟 核心改动：在 URL 后面拼接上 &mode=${selectedMode.value}
     const [dueRes, statsRes] = await Promise.all([
-      request.get(`/api/flashcards/deck/${deckId}/due?newLimit=${newLimit.value}&reviewLimit=${reviewLimit.value}`),
+      request.get(`/api/flashcards/deck/${deckId}/due?newLimit=${newLimit.value}&reviewLimit=${reviewLimit.value}&mode=${selectedMode.value}`),
       request.get(`/api/flashcards/stats/today`)
     ]);
     cards.value = dueRes;
     todayReviewedCount.value = statsRes;
-    // 重置状态
     currentIndex.value = 0;
     undoStack.value = [];
     isFinished.value = cards.value.length === 0;
@@ -197,52 +247,49 @@ const initData = async () => {
 };
 
 const saveSettings = () => {
-  newLimit.value = tempNewLimit.value;
-  reviewLimit.value = tempReviewLimit.value;
+  // 🛡️ 修复：增加防御性容错，防止用户清空输入框导致存入 NaN 从而搞崩后端
+  newLimit.value = parseInt(tempNewLimit.value) || 20;
+  reviewLimit.value = parseInt(tempReviewLimit.value) || 100;
+
+  // 强行纠正用户的错误输入，反馈到 UI 上
+  tempNewLimit.value = newLimit.value;
+  tempReviewLimit.value = reviewLimit.value;
+
   localStorage.setItem('anki_new_limit', newLimit.value);
   localStorage.setItem('anki_review_limit', reviewLimit.value);
   showSettings.value = false;
-  initData(); // 重新按新配额加载数据
+  initData();
   showToast('记忆引擎负荷已重载', 'success');
 };
 
 const flipCard = () => { isFlipped.value = !isFlipped.value; };
 
-// 判断是否为单个单词或极短词组（无空格，或长度小于 15 个字符）
 const isSingleWord = (text) => {
   if (!text) return false;
   const trimmed = text.trim();
-  // 如果没有空格，或者总长度很短，就判定为单词/短语格式
   return !/\s/.test(trimmed) || trimmed.length <= 20;
 };
 
-// 提交复习评价
 const submitGrade = async (grade) => {
-  // 如果卡片不存在，或者正在提交中（被锁住），直接拦截请求！
   if (!currentCard.value || isSubmitting.value) return;
-
-  isSubmitting.value = true; // 上锁
+  isSubmitting.value = true;
   const cardId = currentCard.value.id;
-
-  // 深度克隆保存提交前瞬间的卡片状态，用于撤销
   const snapshot = JSON.parse(JSON.stringify(currentCard.value));
 
   try {
     await request.post(`/api/flashcards/${cardId}/review?grade=${grade}`);
-    undoStack.value.push(snapshot); // 压入撤销栈
-    todayReviewedCount.value++;     // 实时更新今日统计
-
+    undoStack.value.push(snapshot);
+    todayReviewedCount.value++;
     currentIndex.value++;
     isFlipped.value = false;
     if (currentIndex.value >= totalCards.value) isFinished.value = true;
   } catch (error) {
     showToast('数据同步失败，请重试', 'error');
   } finally {
-    isSubmitting.value = false; // 解锁，允许下一次点击
+    isSubmitting.value = false;
   }
 };
 
-// 撤销时空回溯
 const handleUndo = async () => {
   if (undoStack.value.length === 0) return;
   const lastState = undoStack.value.pop();
@@ -250,28 +297,25 @@ const handleUndo = async () => {
     await request.post(`/api/flashcards/${lastState.id}/rollback`, lastState);
     currentIndex.value--;
     todayReviewedCount.value--;
-    isFlipped.value = true; // 撤销后回到卡片背面，方便重新评估
+    isFlipped.value = true;
     isFinished.value = false;
     showToast('已回溯至上一个锚点', 'success');
   } catch (error) {
     showToast('时空回溯失败', 'error');
-    undoStack.value.push(lastState); // 回滚失败，塞回栈中
+    undoStack.value.push(lastState);
   }
 };
 
 const exitStudy = () => router.push('/decks');
 
-// 键盘快捷键监听
 const handleKeyDown = (e) => {
-  if (showSettings.value) return; // 打开设置面板时屏蔽快捷键
+  if (showSettings.value || isDropdownOpen.value) return;
 
-  // 拦截 Ctrl+Z 触发撤销
   if (e.ctrlKey && e.key === 'z') {
     e.preventDefault();
     handleUndo();
     return;
   }
-
   if (isFinished.value) return;
 
   if (e.code === 'Space') {
@@ -282,6 +326,21 @@ const handleKeyDown = (e) => {
     if (e.key === '2') submitGrade('GOOD');
     if (e.key === '3') submitGrade('EASY');
   }
+};
+
+// 自定义指令：用于点击空白处自动收起下拉框
+const vClickOutside = {
+  mounted(el, binding) {
+    el.clickOutsideEvent = (event) => {
+      if (!(el === event.target || el.contains(event.target))) {
+        binding.value(event);
+      }
+    };
+    document.addEventListener("click", el.clickOutsideEvent);
+  },
+  unmounted(el) {
+    document.removeEventListener("click", el.clickOutsideEvent);
+  },
 };
 
 onMounted(() => {
@@ -297,7 +356,7 @@ onUnmounted(() => {
 <style scoped>
 .glass-app-container{min-height:100vh;background:transparent;color:#e8e8f0;font-family:'Inter',system-ui,sans-serif;box-sizing:border-box;display:flex;flex-direction:column;}
 .study-container{padding:0;overflow:hidden;}
-.study-header{height:70px;display:flex;justify-content:space-between;align-items:center;padding:0 40px;background:rgba(18,18,36,0.4);border-bottom:1px solid rgba(255,255,255,0.05);backdrop-filter:blur(20px);z-index:10;}
+.study-header{height:70px;display:flex;justify-content:space-between;align-items:center;padding:0 40px;background:rgba(18,18,36,0.4);border-bottom:1px solid rgba(255,255,255,0.05);backdrop-filter:blur(20px);z-index:100;}
 .header-left-actions{display:flex;align-items:center;gap:16px;}
 .header-right-actions{display:flex;align-items:center;gap:16px;}
 .btn-icon-blur{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#9898b4;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.3s;}
@@ -310,30 +369,8 @@ onUnmounted(() => {
 .progress-text{font-size:0.85rem;font-weight:600;color:#a99df9;letter-spacing:1px;}
 .deck-title-badge{background:rgba(124,111,247,0.15);color:#a99df9;border:1px solid rgba(124,111,247,0.3);padding:6px 14px;border-radius:50px;font-size:0.85rem;font-weight:600;display:flex;align-items:center;}
 .study-main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;position:relative;}
-.flashcard-scene{width:100%;max-width:700px;height:450px;perspective:1500px;z-index:5;}
-.flashcard-body{width:100%;height:100%;position:relative;transition:transform 0.8s cubic-bezier(0.25,1,0.5,1);transform-style:preserve-3d;cursor:pointer;}
-.flashcard-body.is-flipped{transform:rotateX(180deg);}
-.card-face{position:absolute;width:100%;height:100%;backface-visibility:hidden;padding:40px;display:flex;flex-direction:column;justify-content:center;}
-.card-back{transform:rotateX(180deg);border-color:rgba(124,111,247,0.4)!important;box-shadow:0 15px 40px rgba(0,0,0,0.5),inset 0 0 40px rgba(124,111,247,0.1)!important;}
 .glass-panel{background:rgba(18,18,36,0.8);backdrop-filter:blur(40px) saturate(140%);border:1px solid rgba(255,255,255,0.1);border-radius:24px;box-shadow:0 25px 80px rgba(0,0,0,0.6);}
 .glass-panel:hover{border-color:rgba(255,255,255,0.2);}
-.face-label{position:absolute;top:24px;left:24px;font-size:1.5rem;font-weight:800;color:rgba(255,255,255,0.1);}
-.back-label{color:rgba(124,111,247,0.3);}
-.card-content{font-size:1.15rem;line-height:1.8;color:#fff;text-align:left;max-height:300px;overflow-y:auto;width:100%;}
-.flip-hint{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);font-size:0.85rem;color:#6b6b85;display:flex;align-items:center;gap:6px;animation:pulse 2s infinite;}
-@keyframes pulse{0%,100%{opacity:0.5;}50%{opacity:1;}}
-.action-dock{margin-top:40px;display:flex;gap:20px;z-index:6;}
-.btn-grade{background:rgba(18,18,36,0.8);border:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(20px);border-radius:16px;padding:16px 32px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);width:160px;}
-.grade-title{font-size:1.1rem;font-weight:700;}
-.grade-desc{font-size:0.75rem;color:#6b6b85;}
-.grade-hard:hover{background:rgba(245,108,108,0.15);border-color:#f56c6c;transform:translateY(-4px);box-shadow:0 10px 25px rgba(245,108,108,0.2);}
-.grade-hard .grade-title{color:#f56c6c;}
-.grade-good:hover{background:rgba(74,222,128,0.15);border-color:#4ade80;transform:translateY(-4px);box-shadow:0 10px 25px rgba(74,222,128,0.2);}
-.grade-good .grade-title{color:#4ade80;}
-.grade-easy:hover{background:rgba(56,189,248,0.15);border-color:#38bdf8;transform:translateY(-4px);box-shadow:0 10px 25px rgba(56,189,248,0.2);}
-.grade-easy .grade-title{color:#38bdf8;}
-.fade-up-enter-active,.fade-up-leave-active{transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);}
-.fade-up-enter-from,.fade-up-leave-to{opacity:0;transform:translateY(20px);}
 .completion-state{text-align:center;padding:60px 80px;max-width:500px;}
 .completion-orb{width:100px;height:100px;background:radial-gradient(circle,rgba(74,222,128,0.15) 0%,transparent 70%);margin:0 auto 20px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px solid rgba(74,222,128,0.3);}
 .completion-state h2{font-size:1.5rem;margin:0 0 12px;color:#fff;}
@@ -365,9 +402,9 @@ onUnmounted(() => {
 /* 闪卡本体：大小适中，高级玻璃态，水平居中 */
 .anki-flashcard {
   width: 90%;
-  max-width: 580px; /* 控制最大宽度，避免太宽 */
+  max-width: 580px;
   min-height: 400px;
-  margin: 40px auto; /* 让卡片在主区域水平居中，上下留白 */
+  margin: 40px auto;
   background: rgba(25, 25, 45, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
@@ -379,16 +416,30 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
-/* 内容垂直居中 */
-.card-content { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+/* 舞台调度器净化 */
+.card-content {
+  font-size: 1.15rem;
+  line-height: 1.8;
+  color: #fff;
+  text-align: left;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 
-/* 顶部标签提示 */
+.card-text {
+  width: 100%;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
 .card-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: #6b6b85; margin-bottom: 16px; text-align: center; }
 .success-text { color: #4ade80; }
 
-/* 🌟 核心：单词超大震撼排版 */
 .hero-word { text-align: center; }
-/* 穿透 Markdown 的 p 标签进行放大 */
 .hero-word :deep(p) {
   font-size: 3.5rem !important;
   font-weight: 800 !important;
@@ -398,17 +449,12 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* 常规句子排版（如果不是单词） */
 .regular-sentence { text-align: left; }
 .regular-sentence :deep(p) { font-size: 1.15rem; line-height: 1.7; color: #e8e8f0; }
 
-/* 渐隐分割线 */
 .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); margin: 30px 0; }
-
-/* 底部操作区 */
 .card-actions { margin-top: auto; padding-top: 30px; display: flex; justify-content: center; }
 
-/* 按钮样式 */
 .btn-reveal { background: transparent; color: #a99df9; border: 1px solid #7c6ff7; padding: 12px 32px; border-radius: 50px; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; }
 .btn-reveal:hover { background: #7c6ff7; color: #fff; box-shadow: 0 0 20px rgba(124, 111, 247, 0.4); }
 
@@ -421,7 +467,107 @@ onUnmounted(() => {
 .easy { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
 .easy:hover { background: #4ade80; color: #111827; box-shadow: 0 0 15px rgba(74,222,128,0.4); }
 
-/* 淡入动画 */
 .fade-slide-enter-active { transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .fade-slide-enter-from { opacity: 0; transform: translateY(15px); }
+
+/* 🌟 ==================== 【全新重构：Nebula 极客流线下拉框样式】 ==================== */
+.nebula-dropdown {
+  position: relative;
+  display: inline-block;
+  user-select: none;
+}
+
+/* 触发按钮 */
+.dropdown-trigger {
+  height: 40px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50px; /* 胶囊态，完美融入顶部控制区 */
+  color: #e8e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dropdown-trigger:hover, .dropdown-trigger.active {
+  background: rgba(124, 111, 247, 0.08);
+  border-color: #a99df9;
+  box-shadow: 0 0 15px rgba(124, 111, 247, 0.2);
+  color: #fff;
+}
+
+.trigger-icon {
+  font-size: 16px;
+  color: #7c6ff7;
+}
+
+.arrow-icon {
+  font-size: 18px;
+  color: #9898b4;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.arrow-icon.rotated {
+  transform: rotate(180deg);
+  color: #a99df9;
+}
+
+/* 下拉菜单面板 */
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 180px;
+  padding: 8px;
+  background: rgba(18, 18, 36, 0.9); /* 加深底色防背景穿透 */
+  backdrop-filter: blur(25px) saturate(140%);
+  border-radius: 16px;
+  list-style: none;
+  margin: 0;
+  z-index: 1000;
+  transform-origin: top right;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* 菜单列表项 */
+.dropdown-menu li {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  color: #9898b4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dropdown-menu li:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e8e8f0;
+}
+
+.dropdown-menu li.selected {
+  background: rgba(124, 111, 247, 0.15);
+  color: #a99df9;
+  font-weight: 600;
+}
+
+.opt-icon {
+  font-size: 16px;
+}
+
+/* 下拉渐变动画 */
+.dropdown-fade-enter-active, .dropdown-fade-leave-active {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.dropdown-fade-enter-from, .dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.95);
+}
 </style>

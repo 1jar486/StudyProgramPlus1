@@ -6,11 +6,11 @@ import lombok.Data; // Lombok库自动生成get和set方法，还默认写了toS
 public class ChatMessage {
     private Integer id;
     private Integer notebookId;
+    private Integer sessionId;
     private String role; // "user" 或 "ai"
     private String content;
     private LocalDateTime createdTime;
     private String sources; // 答案来源
 
     public ChatMessage() {}
-
 }

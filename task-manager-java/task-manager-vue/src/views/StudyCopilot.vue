@@ -60,10 +60,64 @@
       </div>
 
       <div class="chat-section glass-panel">
-        <div class="section-header">
-          <h2><span class="material-icons" style="color: #60A5FA;">auto_awesome</span> AI 导师链路</h2>
-          <p>基于当前知识库区块进行对话检索</p >
+        <div class="section-header chat-header-flex">
+          <div class="header-titles">
+            <h2><span class="material-icons" style="color: #60A5FA;">auto_awesome</span> AI 导师链路</h2>
+            <p>基于当前知识库区块进行对话检索</p>
+          </div>
+
+          <div class="session-controls">
+            <button class="btn-session-dropdown" @click="isDropdownOpen = !isDropdownOpen">
+              <span class="session-title-text">{{ currentSessionTitle }}</span>
+              <span class="material-icons icon-xs" :class="{ 'rotate-180': isDropdownOpen }">expand_more</span>
+            </button>
+
+            <button class="btn-new-chat" @click="createNewSession" title="开启新对话">
+              <span class="material-icons">add</span>
+            </button>
+
+            <transition name="dropdown-fade">
+              <div v-if="isDropdownOpen" class="session-dropdown-menu glass-panel custom-scrollbar">
+                <div class="dropdown-label">历史记忆</div>
+                <ul class="session-list">
+                  <li v-for="session in sessions" :key="session.id" class="session-item" :class="{ 'active': currentSessionId === session.id }" @click="switchSession(session.id)">
+
+                    <div class="session-item-content">
+                      <span class="material-icons icon-xs" :style="{ color: session.isPinned ? '#f59e0b' : '' }">
+                        {{ session.isPinned ? 'push_pin' : 'chat_bubble_outline' }}
+                      </span>
+                      <span class="item-text" :title="session.title">{{ session.title || '新的探讨' }}</span>
+                    </div>
+
+                    <div class="session-actions" @click.stop>
+                      <button class="btn-icon-sm" @click="toggleMenu(session.id)" title="更多操作">
+                        <span class="material-icons">more_vert</span>
+                      </button>
+
+                      <transition name="dropdown-fade">
+                        <div v-if="activeMenuId === session.id" class="session-action-menu glass-panel custom-scrollbar">
+                          <button @click="handlePin(session)">
+                            <span class="material-icons icon-xs">{{ session.isPinned ? 'do_not_disturb_alt' : 'push_pin' }}</span>
+                            {{ session.isPinned ? '取消置顶' : '固定置顶' }}
+                          </button>
+                          <button @click="handleRename(session)">
+                            <span class="material-icons icon-xs">edit</span>修改标题
+                          </button>
+                          <div class="menu-divider"></div>
+                          <button class="danger-text" @click="handleDeleteSession(session)">
+                            <span class="material-icons icon-xs">delete_outline</span>彻底删除
+                          </button>
+                        </div>
+                      </transition>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </transition>
+          </div>
         </div>
+
+        <div v-if="isDropdownOpen" class="dropdown-overlay" @click="isDropdownOpen = false"></div>
 
         <div class="chat-window custom-scrollbar" ref="chatWindow">
           <div v-for="(msg, index) in chatHistory" :key="index" :class="['chat-bubble-wrapper', msg.role]">
@@ -179,7 +233,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import request from '../utils/request';
 // 1. 在顶部导入依赖（紧挨着现有的 import）
@@ -210,6 +264,156 @@ const triggerDeleteDoc = (id) => { deleteDocConfirm.value = { show: true, id }; 
 const chatHistory = ref([]);
 const goBack = () => router.push('/notebooks');
 const triggerUpload = () => fileInput.value.click();
+
+// ==================== 【新增：多会话状态】 ====================
+const sessions = ref([]);
+const currentSessionId = ref(null);
+const isDropdownOpen = ref(false);
+
+// ==================== 【新增：三点菜单控制台逻辑】 ====================
+const activeMenuId = ref(null);
+
+// 展开/收起具体某个会话的菜单
+const toggleMenu = (id) => {
+  activeMenuId.value = activeMenuId.value === id ? null : id;
+};
+
+// 全局监听：点击页面任何其他地方，收起三点菜单
+const closeMenu = () => { activeMenuId.value = null; };
+onMounted(() => { document.addEventListener('click', closeMenu); });
+onUnmounted(() => { document.removeEventListener('click', closeMenu); });
+
+// 接口 1: 固定/取消固定
+const handlePin = async (session) => {
+  activeMenuId.value = null;
+  const newStatus = session.isPinned ? 0 : 1; // 1为置顶，0为取消
+  try {
+    await request.put(`/api/chat-sessions/${session.id}/pin`, { isPinned: newStatus });
+    showToast(newStatus ? '会话已固定至顶部' : '已取消置顶', 'success');
+    await fetchSessions(); // ✨ 神奇之处：重新拉取，后端的 SQL 会自动把它们排好序！
+  } catch (error) {
+    showToast('置顶操作失败', 'error');
+  }
+};
+
+// 接口 2: 重命名 (利用浏览器原生 prompt，轻量且不破坏 UI 架构)
+const handleRename = async (session) => {
+  activeMenuId.value = null;
+  const newName = prompt('为这层记忆脉络赋予一个新名字：', session.title || '新的探讨');
+  if (!newName || newName.trim() === '' || newName === session.title) return;
+
+  try {
+    await request.put(`/api/chat-sessions/${session.id}/rename`, { title: newName.trim() });
+    showToast('节点重命名成功', 'success');
+    await fetchSessions();
+  } catch (error) {
+    showToast('重命名失败', 'error');
+  }
+};
+
+// 接口 3: 彻底销毁
+const handleDeleteSession = async (session) => {
+  activeMenuId.value = null;
+  if (!confirm(`警告：确定要彻底销毁记忆节点 "${session.title || '新的探讨'}" 吗？此操作不可逆！`)) return;
+
+  try {
+    await request.delete(`/api/chat-sessions/${session.id}`);
+    showToast('记忆节点及其底层的对话流已彻底粉碎', 'success');
+
+    // 如果玩家删掉的是当前正在看着的这个会话
+    if (currentSessionId.value === session.id) {
+      currentSessionId.value = null; // 重置
+      chatHistory.value = []; // 清空屏幕
+    }
+
+    await fetchSessions(); // 刷新列表，被删掉的就永远消失了
+  } catch (error) {
+    showToast('粉碎失败，请检查网络链路', 'error');
+  }
+};
+// ==============================================================
+
+const currentSessionTitle = computed(() => {
+  const active = sessions.value.find(s => s.id === currentSessionId.value);
+  return active ? (active.title || '新的探讨') : '载入中...';
+});
+
+// 1. 获取左侧下拉框的历史列表
+const fetchSessions = async () => {
+  try {
+    const res = await request.get(`/api/chat-sessions/notebook/${notebookId}`);
+    sessions.value = res;
+
+    if (sessions.value.length === 0) {
+      // 🌟 修复：传入 true，代表是系统强制初始化，无视防御机制
+      await createNewSession(true);
+    } else if (!currentSessionId.value) {
+      await switchSession(sessions.value[0].id);
+    }
+  } catch (error) {
+    showToast('获取历史会话失败', 'error');
+  }
+};
+
+
+// 2. 创建新会话 (🌟 修复：增加 isSystemForce 参数)
+const createNewSession = async (isSystemForce = false) => {
+  // 🛡️ 第一层防御：如果是用户手动点击（非系统强制），且当前已经是空对话，拦截！
+  if (!isSystemForce && chatHistory.value.length <= 1) {
+    isDropdownOpen.value = false;
+    showToast('当前已经是全新对话啦，直接开始提问吧！', 'success');
+    if (chatInputRef.value) chatInputRef.value.focus();
+    return;
+  }
+
+  // 🛡️ 第二层防御：如果是用户手动点击，且存在废弃空会话，直接切换过去
+  if (!isSystemForce) {
+    const existingEmptySession = sessions.value.find(s => s.title === '新的探讨');
+    if (existingEmptySession) {
+      await switchSession(existingEmptySession.id);
+      isDropdownOpen.value = false;
+      showToast('已为您切换到未使用的空白对话', 'success');
+      if (chatInputRef.value) chatInputRef.value.focus();
+      return;
+    }
+  }
+
+  // 发送真实的创建请求
+  try {
+    const newSession = await request.post(`/api/chat-sessions/notebook/${notebookId}`);
+    sessions.value.unshift(newSession);
+    await switchSession(newSession.id);
+    isDropdownOpen.value = false;
+  } catch (error) {
+    showToast('创建新对话失败', 'error');
+  }
+};
+
+// 3. 切换历史会话并拉取详情 [cite: 78]
+const switchSession = async (sessionId) => {
+  currentSessionId.value = sessionId;
+  isDropdownOpen.value = false;
+  chatHistory.value = []; // 清空当前视图
+
+  try {
+    const messages = await request.get(`/api/chat-sessions/${sessionId}/messages`);
+    if (messages && messages.length > 0) {
+      chatHistory.value = messages.map(msg => ({
+        role: msg.role,
+        text: msg.content,
+        sources: msg.sources ? JSON.parse(msg.sources) : [],
+        isExpanded: false
+      }));
+    } else {
+      // 空会话的开场白
+      chatHistory.value = [{ role: 'ai', text: '你好！我已经准备好了，上传资料后随时向我提问吧！', sources: [] }];
+    }
+    await scrollToBottom();
+  } catch (error) {
+    showToast('拉取对话记录失败', 'error');
+  }
+};
+// ==============================================================
 
 //  初始化 Markdown 全局配置
 marked.setOptions({
@@ -349,25 +553,6 @@ const fetchDocuments = async () => {
   }
 };
 
-const fetchChatHistory = async () => {
-  try {
-    const history = await request.get(`/api/chat/${notebookId}`);
-    if (history && history.length > 0) {
-      chatHistory.value = history.map(msg => ({
-        role: msg.role,
-        text: msg.content,
-        sources: msg.sources ? JSON.parse(msg.sources) : [],
-        isExpanded: false
-      }));
-    } else {
-      chatHistory.value = [{ role: 'ai', text: '你好！我已经准备好了，上传资料后随时向我提问吧！', sources: [] }];
-    }
-    await scrollToBottom();
-  } catch (error) {
-    console.error("获取对话历史失败", error);
-  }
-};
-
 onUnmounted(() => {
   if (pollingTimer) clearInterval(pollingTimer);
 });
@@ -419,8 +604,17 @@ const handleChat = async () => {
   await nextTick(() => { if (chatInputRef.value) chatInputRef.value.style.height = '24px'; });
   await scrollToBottom();
   try {
-    const res = await request.post('/api/chat', { notebookId: parseInt(notebookId), query: currentQuestion });
+    // 👇 修改点 1：增加 sessionId 参数（currentSessionId.value 是我们在上一步声明的变量）
+    const res = await request.post('/api/chat', {
+      notebookId: parseInt(notebookId),
+      sessionId: currentSessionId.value, // 🌟 告诉后端这是哪个具体的历史对话
+      query: currentQuestion
+    });
     chatHistory.value.push({ role: 'ai', text: res.answer, sources: res.sources || [], isExpanded: false });
+
+    // 👇 修改点 2：静默刷新一下会话列表。
+    // 作用：如果是第一句话，后端会自动把标题从“新的探讨”改成用户提问的前几个字。刷新一下列表，前端的下拉框标题就能实时更新了！
+    fetchSessions();
   } catch (error) {
     chatHistory.value.push({ role: 'ai', text: '❌ 抱歉，大脑暂时断连，请检查底层服务器。', sources: [], isExpanded: false });
   } finally {
@@ -446,7 +640,7 @@ const autoResize = () => {
 
 onMounted(() => {
   fetchDocuments();
-  fetchChatHistory();
+  fetchSessions(); // ✅ 新逻辑：页面加载时，先去请求后端获取历史下拉列表
 });
 </script>
 
@@ -570,4 +764,56 @@ onMounted(() => {
 /* 覆盖修复原有 .citation-badge 在富文本中的位置漂移 */
 .markdown-body:deep(.citation-badge) {display: inline-flex;justify-content: center;align-items: center;background: rgba(124, 111, 247, 0.2);color: #a99df9;border: 1px solid rgba(124, 111, 247, 0.4);font-size: 0.75rem;font-weight: 700;width: 20px;height: 20px;border-radius: 50%;margin: 0 4px;cursor: pointer;transition: 0.3s;vertical-align: super;}
 .markdown-body:deep(.citation-badge:hover) {background: #7c6ff7;color: #fff;box-shadow: 0 0 10px rgba(124, 111, 247, 0.5);transform: scale(1.1);}
+
+/* ================== 新增：多会话下拉控件样式 ================== */
+.chat-header-flex { display: flex; justify-content: space-between; align-items: flex-start; }
+.header-titles { flex: 1; }
+
+.session-controls { position: relative; display: flex; align-items: center; gap: 8px; z-index: 100; }
+
+.btn-session-dropdown { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #e8e8f0; border-radius: 12px; padding: 8px 14px; font-size: 0.9rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); max-width: 200px; }
+.btn-session-dropdown:hover { background: rgba(255,255,255,0.08); border-color: #7c6ff7; }
+.session-title-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.btn-new-chat { background: transparent; border: 1px solid rgba(255,255,255,0.08); color: #a99df9; border-radius: 10px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.btn-new-chat:hover { background: rgba(124,111,247,0.15); border-color: #7c6ff7; color: #fff; transform: translateY(-2px); }
+
+.session-dropdown-menu { position: absolute; top: calc(100% + 8px); right: 0; width: 260px; padding: 12px 0; z-index: 101; max-height: 400px; overflow-y: auto; background: rgba(18,18,36,0.95); /* 更深的底色 */ border-radius: 16px; transform-origin: top right; }
+.dropdown-label { font-size: 0.75rem; color: #6b6b85; padding: 0 16px 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px; }
+
+.session-list { list-style: none; padding: 0; margin: 0; }
+
+.session-item:hover { background: rgba(255,255,255,0.04); color: #e8e8f0; }
+.session-item.active { background: rgba(124,111,247,0.1); color: #fff; border-left-color: #7c6ff7; }
+
+.icon-xs { font-size: 18px; transition: transform 0.3s; }
+.rotate-180 { transform: rotate(180deg); }
+.item-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+
+.dropdown-overlay { position: fixed; inset: 0; z-index: 99; cursor: default; }
+
+.dropdown-fade-enter-active, .dropdown-fade-leave-active { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.dropdown-fade-enter-from, .dropdown-fade-leave-to { opacity: 0; transform: scale(0.95) translateY(-10px); }
+
+/* ================== 新增：多会话三点菜单 UI 规范 ================== */
+.session-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 8px 10px 16px; cursor: pointer; color: #9898b4; font-size: 0.88rem; transition: background 0.2s; border-left: 3px solid transparent; }
+.session-item-content { display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden; }
+
+.session-actions { position: relative; display: flex; align-items: center; }
+/* 默认隐藏三点按钮，鼠标移入这行才显示，保持 UI 极度纯净 */
+.btn-icon-sm { background: transparent; border: none; color: #6b6b85; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; opacity: 0; }
+.session-item:hover .btn-icon-sm { opacity: 1; }
+.btn-icon-sm:hover { background: rgba(255,255,255,0.1); color: #fff; }
+/* 激活态强制显示 */
+.session-actions:focus-within .btn-icon-sm { opacity: 1; color: #a99df9; }
+
+/* 玻璃态子菜单悬浮窗 */
+.session-action-menu { position: absolute; top: calc(100% + 4px); right: 0; width: 150px; padding: 6px; z-index: 999; display: flex; flex-direction: column; gap: 2px; border-radius: 12px; transform-origin: top right; }
+.session-action-menu button { background: transparent; border: none; width: 100%; text-align: left; padding: 10px 12px; color: #e8e8f0; font-size: 0.85rem; border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.session-action-menu button:hover { background: rgba(124,111,247,0.15); color: #fff; transform: translateX(2px); }
+
+.menu-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 8px; }
+
+.session-action-menu button.danger-text { color: #f56c6c; }
+.session-action-menu button.danger-text:hover { background: rgba(245,108,108,0.15); color: #ff8585; }
 </style>

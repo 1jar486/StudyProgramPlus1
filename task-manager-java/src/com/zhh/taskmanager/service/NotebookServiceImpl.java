@@ -1,6 +1,7 @@
 package com.zhh.taskmanager.service;
 
 import com.zhh.taskmanager.mapper.ChatMessageMapper;
+import com.zhh.taskmanager.mapper.ChatSessionMapper;
 import com.zhh.taskmanager.mapper.DocumentMapper;
 import com.zhh.taskmanager.mapper.NotebookMapper;
 import com.zhh.taskmanager.Entity.Document;
@@ -19,7 +20,7 @@ public class NotebookServiceImpl implements NotebookService {
     @Autowired private NotebookMapper notebookMapper;
     @Autowired private DocumentMapper documentMapper;
     @Autowired private ChatMessageMapper chatMessageMapper;
-
+    @Autowired private ChatSessionMapper chatSessionMapper;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Override
@@ -72,6 +73,7 @@ public class NotebookServiceImpl implements NotebookService {
 
         // 2. 逻辑级销毁 (严格按顺序清理 MySQL，子表 -> 父表)
         chatMessageMapper.deleteByNotebookId(id);
+        chatSessionMapper.deleteByNotebookId(id); // 【新增】抹除孤立的会话
         documentMapper.deleteByNotebookId(id, userId);
         notebookMapper.deleteById(id, userId);
     }

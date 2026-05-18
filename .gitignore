@@ -1,0 +1,12 @@
+# 忽略 IDEA 编译及配置文件
+.idea/
+*.iml
+out/
+gen/
+
+# 忽略 Python 编译缓存
+**/__pycache__/
+*.pyc
+
+# 忽略本地向量数据库数据
+task-manager-ai-py/chroma_db/

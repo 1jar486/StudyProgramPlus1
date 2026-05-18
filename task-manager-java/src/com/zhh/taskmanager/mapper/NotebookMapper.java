@@ -22,4 +22,6 @@ public interface NotebookMapper {
     // 删除笔记本
     @Delete("DELETE FROM notebook WHERE id = #{id} AND user_id = #{userId}")
     void deleteById(@Param("id") Integer id, @Param("userId") Long userId);
+
+
 }

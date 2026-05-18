@@ -18,7 +18,7 @@
         <button class="btn-nebula-outline" @click="router.push('/decks')">
           <span class="material-icons">arrow_back</span>返回牌组大厅
         </button>
-        <button class="btn-nebula-primary ml-15" @click="goToStudyMode" :disabled="cards.length === 0">
+        <button class="btn-nebula-primary" @click="goToStudyMode" :disabled="cards.length === 0">
           <span class="material-icons">play_circle_filled</span>进入沉浸学习
         </button>
       </div>
@@ -49,7 +49,9 @@
           <td class="text-truncate">{{ card.frontContent }}</td>
           <td class="text-truncate">{{ card.backContent }}</td>
           <td>
-            <span :class="['status-badge', `status-${card.status.toLowerCase()}`]">{{ card.status }}</span>
+            <span :class="['status-badge', `status-${(card.status?.toLowerCase()) || 'new'}`]">
+              {{ card.status || 'NEW' }}
+            </span>
           </td>
           <td>{{ card.consecutiveCorrect }} 次</td>
           <td>
@@ -93,7 +95,9 @@
           </div>
           <div class="modal-footer">
             <button class="btn-nebula-outline" @click="cardModal.show = false">取消</button>
-            <button class="btn-nebula-primary" @click="saveCard" :disabled="!cardModal.data.frontContent.trim() || !cardModal.data.backContent.trim()">保存卡片</button>
+            <button class="btn-nebula-primary" @click="saveCard" :disabled="!cardModal.data.frontContent.trim() || !cardModal.data.backContent.trim() || (cardModal.isEdit && cardModal.data.frontContent === cardModal.data.oldFront && cardModal.data.backContent === cardModal.data.oldBack)">
+              保存卡片
+            </button>
           </div>
         </div>
       </div>
@@ -118,6 +122,7 @@ const showToast = (message, type = 'success') => {
   toast.value = { show: true, message, type };
   toastTimer = setTimeout(() => { toast.value.show = false; }, 3000);
 };
+
 
 // 卡片列表数据
 const cards = ref([]);
@@ -173,13 +178,32 @@ const deleteCard = async (id) => {
     showToast('删除失败', 'error');
   }
 };
+// 🛡️ 修复：状态中增加 oldFront 和 oldBack 记录初始值
+const cardModal = ref({
+  show: false,
+  isEdit: false,
+  data: { id: null, frontContent: '', backContent: '', oldFront: '', oldBack: '' }
+});
 
+const openCreateModal = () => {
+  cardModal.value = { show: true, isEdit: false, data: { id: null, frontContent: '', backContent: '', oldFront: '', oldBack: '' } };
+};
+
+const openEditModal = (card) => {
+  cardModal.value = {
+    show: true,
+    isEdit: true,
+    data: {
+      id: card.id,
+      frontContent: card.frontContent,
+      backContent: card.backContent,
+      oldFront: card.frontContent, // 备份原始数据
+      oldBack: card.backContent
+    }
+  };
+};
 // 导出功能：直接调用我们写好的 CSV 导出接口
 const exportCards = () => {
-  // 利用 window.open 直接触发浏览器下载
-  const token = localStorage.getItem('token'); // 或者你存储token的方式
-  // 如果你的接口拦截了 token，可以考虑使用 axios 下载 Blob 或者在 url 后拼接 token (视你的后端拦截器而定)
-  // 为了安全且简单，如果你的 get 请求能被拦截器加上 headers，最好用 request 下载 blob
   request.get(`/api/flashcards/deck/${deckId}/export`, { responseType: 'blob' })
       .then(res => {
         const blob = new Blob([res], { type: 'text/csv;charset=utf-8;' });
@@ -189,7 +213,7 @@ const exportCards = () => {
         link.click();
         URL.revokeObjectURL(link.href);
         showToast('导出成功', 'success');
-      }).catch(() => showToast('导出失败', 'error'));
+      }).catch(() => showToast('导出失败，请检查网络', 'error'));
 };
 
 const goToStudyMode = () => {
@@ -204,8 +228,8 @@ onMounted(() => {
 <style scoped>
 .glass-app-container { min-height: 100vh; padding: 60px 80px; background: transparent; color: #e8e8f0; font-family: 'Inter', system-ui, sans-serif; box-sizing: border-box; }
 .nebula-header { display: flex; justify-content: space-between; align-items: flex-start; max-width: 1200px; margin: 0 auto 40px; }
-.header-right { display: flex; align-items: center; }
-.ml-15 { margin-left: 15px; }
+.header-right { display: flex; align-items: center; gap: 15px;}
+
 .nebula-title-main { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; margin: 0; display: flex; align-items: center; gap: 12px; color: #fff; text-shadow: 0 0 20px rgba(124, 111, 247, 0.3); }
 .tech-icon { color: #7c6ff7; font-size: 32px; }
 .nebula-subtitle { color: #9898b4; font-size: 0.95rem; margin: 8px 0 0; }
@@ -233,7 +257,7 @@ onMounted(() => {
 .btn-sm { padding: 8px 16px; font-size: 0.9rem; border-radius: 10px; }
 .nebula-empty-state { text-align: center; padding: 80px 0; color: #6b6b85; }
 .empty-orb { width: 100px; height: 100px; background: radial-gradient(circle, rgba(124, 111, 247, 0.1) 0%, transparent 70%); margin: 0 auto 20px; border-radius: 50%; border: 1px dashed rgba(124, 111, 247, 0.3); }
-.toast-wrapper { position: fixed; top: 28px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 50px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; z-index: 10000; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 12px 40px rgba(0,0,0,0.5); background: rgba(18,18,36,0.85); }
+.toast-wrapper { position: fixed; top: 28px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 50px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; z-index: 99999; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 12px 40px rgba(0,0,0,0.5); background: rgba(18,18,36,0.85); }
 .toast-success { border-color: rgba(74,222,128,0.4); color: #4ade80; }
 .toast-error { border-color: rgba(245,108,108,0.4); color: #f56c6c; }
 .toast-fade-enter-active, .toast-fade-leave-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }

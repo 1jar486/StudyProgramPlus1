@@ -166,16 +166,48 @@ def chat_with_knowledge(query: str, notebook_id: int, history: list = None):
 
 def delete_document_vectors(file_path: str, notebook_id: int):
     """
-    向量垃圾回收：根据文件路径和笔记本ID，精准删除 ChromaDB 中的相关向量切片
+    🌌 星云安全防御：双重物理垃圾回收机制
+    不仅无缝抹除 Chroma 向量库里的数据切片，同时将本地磁盘/服务器上的物理文件一并抹杀！
     """
-    print(f"准备清除幽灵向量: 笔记本[{notebook_id}] -> 文件[{file_path}]")
+    print(f"🧹 启动全链路大扫除：解绑笔记本[{notebook_id}] -> 目标文件[{file_path}]")
+
+    # 🌟 修复隐患1：标准化路径格式，自动消灭 Windows \\ 和 Linux / 的跨平台不匹配悲剧
+    normalized_path = os.path.normpath(file_path)
+
+    vector_success = False
+    file_success = False
+
+    # 1️⃣ 物理清空 ChromaDB 中的幽灵向量
     try:
         vector_store = get_vector_store(notebook_id)
-        # LangChain 的 Loader 默认会将文件路径存入 metadata 的 "source" 字段
-        # 我们直接调用底层 collection 的 delete 方法进行条件匹配删除
+
+        # 双重保险匹配删除
         vector_store._collection.delete(where={"source": file_path})
-        print("✅ 物理向量数据已彻底销毁！")
-        return True
+        if normalized_path != file_path:
+            vector_store._collection.delete(where={"source": normalized_path})
+
+        print(f"✅ [1/2] Chroma 向量库中关于该文件的所有 Chunk 切片已彻底融毁")
+        vector_success = True
     except Exception as e:
-        print(f"❌ 向量销毁失败: {e}")
-        return False
+        print(f"❌ Chroma 向量清除失败，错误日志: {e}")
+
+    # 2️⃣ 🌟 核心补丁：物理清空本地磁盘/服务器上的幽灵物理文件
+    try:
+        # 尝试寻找并移除标准化路径的文件
+        if os.path.exists(normalized_path):
+            os.remove(normalized_path)
+            print(f"✅ [2/2] 服务器磁盘物理文件已彻底抹除: {normalized_path}")
+            file_success = True
+        elif os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"✅ [2/2] 服务器磁盘物理文件已彻底抹除: {file_path}")
+            file_success = True
+        else:
+            # 安全放行：如果文件本身已经不存在了，说明已经干净，不卡死流程
+            print(f"⚠️ 提示: 本地磁盘未发现该物理文件（可能在此之前已被手动移除）: {normalized_path}")
+            file_success = True
+    except Exception as e:
+        print(f"❌ 服务器磁盘物理文件删除失败，错误日志: {e}")
+
+    # 只有向量和物理文件都搞定了，才向 Java 后端返回真正的 True
+    return vector_success and file_success

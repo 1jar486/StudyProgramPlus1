@@ -7,7 +7,8 @@ public interface FlashcardService {
 
     List<Flashcard> getAllCards(Integer deckId);
 
-    List<Flashcard> getDueCards(Integer deckId, int newLimit, int reviewLimit, Long userId);
+    // 🌟 修改点：方法末尾加上 String mode
+    List<Flashcard> getDueCards(Integer deckId, int newLimit, int reviewLimit, Long userId, String mode);
 
     void createFlashcard(Flashcard card);
 

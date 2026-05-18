@@ -14,17 +14,74 @@
 
     <transition name="sidebar-slide">
       <aside class="nebula-notion-sidebar" v-show="showChat">
-        <div class="chat-header">
-          <span class="title">
-            <span class="material-icons" style="font-size: 18px; color: #7c6ff7;">
-              {{ chatTargetId === 999 ? 'public' : 'library_books' }}
+        <div class="chat-header-complex">
+          <div class="header-top-row">
+            <span class="title">
+              <span class="material-icons" style="font-size: 18px; color: #7c6ff7;">
+                {{ chatTargetId === 999 ? 'public' : 'library_books' }}
+              </span>
+              {{ chatTargetId === 999 ? '🤖 智能机器黑' : `🧠 专属外脑 (${chatTargetName})` }}
             </span>
-            {{ chatTargetId === 999 ? '🤖 智能机器黑' : `🧠 专属外脑 (${chatTargetName})` }}
-          </span>
-          <button class="btn-close" @click="showChat = false" title="收起面板">
-            <span class="material-icons">close</span>
-          </button>
+            <button class="btn-close" @click="showChat = false" title="收起面板">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+
+          <div class="session-controls-row">
+            <button class="btn-session-dropdown" @click="isDropdownOpen = !isDropdownOpen">
+              <span class="session-title-text">{{ currentSessionTitle }}</span>
+              <span class="material-icons icon-xs" :class="{ 'rotate-180': isDropdownOpen }">expand_more</span>
+            </button>
+
+            <button class="btn-new-chat" @click="createNewSession" title="开启新对话">
+              <span class="material-icons">add</span>
+            </button>
+
+            <transition name="dropdown-fade">
+              <div v-if="isDropdownOpen" class="session-dropdown-menu glass-panel custom-scrollbar">
+                <div class="dropdown-label">历史记忆</div>
+                <ul class="session-list">
+                  <li v-for="session in sessions"
+                      :key="session.id"
+                      class="session-item"
+                      :class="{ 'active': currentSessionId === session.id }"
+                      @click="switchSession(session.id)">
+
+                    <div class="session-item-content">
+                      <span class="material-icons icon-xs" :style="{ color: session.isPinned ? '#f59e0b' : '' }">
+                        {{ session.isPinned ? 'push_pin' : 'chat_bubble_outline' }}
+                      </span>
+                      <span class="item-text" :title="session.title">{{ session.title || '新的探讨' }}</span>
+                    </div>
+
+                    <div class="session-actions" @click.stop>
+                      <button class="btn-icon-sm" @click="toggleMenu(session.id)" title="更多操作">
+                        <span class="material-icons">more_vert</span>
+                      </button>
+
+                      <transition name="dropdown-fade">
+                        <div v-if="activeMenuId === session.id" class="session-action-menu glass-panel custom-scrollbar">
+                          <button @click="handlePin(session)">
+                            <span class="material-icons icon-xs">{{ session.isPinned ? 'do_not_disturb_alt' : 'push_pin' }}</span>
+                            {{ session.isPinned ? '取消置顶' : '固定置顶' }}
+                          </button>
+                          <button @click="handleRename(session)">
+                            <span class="material-icons icon-xs">edit</span>修改标题
+                          </button>
+                          <div class="menu-divider"></div>
+                          <button class="danger-text" @click="handleDeleteSession(session)">
+                            <span class="material-icons icon-xs">delete_outline</span>彻底删除
+                          </button>
+                        </div>
+                      </transition>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </transition>
+          </div>
         </div>
+        <div v-if="isDropdownOpen" class="dropdown-overlay" @click="isDropdownOpen = false"></div>
 
         <div class="chat-body custom-scrollbar" ref="chatBodyRef">
           <div v-for="(msg, index) in chatHistory" :key="index" :class="['chat-bubble-wrapper', msg.role]">
@@ -57,16 +114,15 @@
         <div v-if="menuState === 1" class="menu-container">
           <div class="menu-header">中枢控制面板</div>
           <div class="menu-body custom-scrollbar">
-            <div class="menu-item primary-item" @click="openChat(999)"><span class="material-icons">public</span> 全局学习助手</div>
-            <div class="menu-item primary-item" @click="router.push('/decks'); menuState = 0"><span class="material-icons" style="color: #a99df9;">style</span> 记忆牌组大厅</div>
-            <div v-if="isNotebookMode" class="menu-item current-item" @click="openChat(currentNotebookId)"><span class="material-icons">library_books</span> 当前: {{ currentNotebookName }}</div>
+            <div class="menu-item primary-item" @click="openChat(999)">
+              <span class="material-icons">public</span> 全局学习助手
+            </div>
+
             <div class="menu-divider"></div>
-            <div class="menu-subtitle">最近思绪空间</div>
-            <div class="menu-item" v-for="nb in recentNotebooks" :key="nb.id" @click="navigateToNotebook(nb.id)"><span class="material-icons" style="font-size: 16px;">book</span> {{ nb.name }}</div>
-            <div v-if="recentNotebooks.length === 0" class="empty-text">暂无记录</div>
-            <div class="menu-divider"></div>
-            <div class="menu-item action-item" @click="openCreateModal"><span class="material-icons">add_circle_outline</span> 新建思绪空间</div>
-            <div class="menu-item" @click="menuState = 2"><span class="material-icons">pets</span> 宠物动作指令</div>
+
+            <div class="menu-item" @click="menuState = 2">
+              <span class="material-icons">pets</span> 宠物动作指令
+            </div>
           </div>
         </div>
 
@@ -78,28 +134,6 @@
         </div>
       </div>
     </transition>
-
-    <transition name="modal-fade">
-      <div class="nebula-modal-overlay" v-if="showCreateModal" @click.self="showCreateModal = false">
-        <div class="nebula-modal-content glass-panel">
-          <div class="modal-header">
-            <h2>新建思绪空间</h2>
-            <button class="btn-close" @click="showCreateModal = false"><span class="material-icons">close</span></button>
-          </div>
-          <div class="modal-body">
-            <div class="nebula-input-wrapper" style="margin-bottom: 0;">
-              <input v-model="newNotebookName" type="text" class="nebula-input" placeholder="输入课题或科目名称..." @keyup.enter="handleCreateNotebook" autofocus />
-              <div class="focus-line"></div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-nebula-outline" @click="showCreateModal = false">取消</button>
-            <button class="btn-nebula-primary" @click="handleCreateNotebook" :disabled="!newNotebookName.trim()">跃迁构建</button>
-          </div>
-        </div>
-      </div>
-    </transition>
-
   </div>
 </template>
 
@@ -117,6 +151,22 @@ const router = useRouter();
 const showNav = computed(() => {
   return route.path !== '/login' && route.path !== '/';
 });
+// ==================== 【新增：小黑的多会话状态与菜单控制】 ====================
+const sessions = ref([]);
+const currentSessionId = ref(null);
+const isDropdownOpen = ref(false);
+const activeMenuId = ref(null);
+
+const currentSessionTitle = computed(() => {
+  const active = sessions.value.find(s => s.id === currentSessionId.value);
+  return active ? (active.title || '新的探讨') : '载入中...';
+});
+
+// 全局点击收起三点菜单
+const closeMenu = () => { activeMenuId.value = null; };
+onMounted(() => { document.addEventListener('click', closeMenu); });
+onUnmounted(() => { document.removeEventListener('click', closeMenu); });
+// =========================================================================
 
 // 全局粒子系统核心逻辑
 const globalCanvasRef = ref(null);
@@ -174,12 +224,11 @@ const onTouchEnd = () => { isMouseOnCanvas = false; };
 
 // 状态与配置管理
 const menuState = ref(0);
-const recentNotebooks = ref([]);
-const showCreateModal = ref(false);
-const newNotebookName = ref('');
+
+
+
 const actionData = [ { id: 1, name: '趴', icon: '' }, { id: 2, name: '听歌', icon: '' }, { id: 3, name: '吃西瓜', icon: '' }, { id: 4, name: '翻滚', icon: '' }, { id: 5, name: '奔跑', icon: '' }, { id: 6, name: '洗脸', icon: '' } ];
 const currentNotebookId = computed(() => route.params.notebookId ? parseInt(route.params.notebookId) : null);
-const isNotebookMode = computed(() => !!currentNotebookId.value);
 const currentNotebookName = ref('');
 
 watch(() => route.params.notebookId, async (newId) => {
@@ -190,15 +239,8 @@ watch(() => route.params.notebookId, async (newId) => {
 }, { immediate: true });
 
 // 菜单与弹窗业务逻辑
-const fetchRecentNotebooks = async () => { try { const res = await request.get('/api/notebooks'); recentNotebooks.value = res.slice(0, 3); } catch (error) { console.error("无法获取最近笔记本"); } };
-const openMenu = async () => { if (showChat.value) { showChat.value = false; } else { menuState.value = 1; await fetchRecentNotebooks(); } };
-const navigateToNotebook = (id) => { menuState.value = 0; router.push(`/copilot/${id}`); };
-const openCreateModal = () => { showCreateModal.value = true; menuState.value = 0; };
-const handleCreateNotebook = async () => {
-  if (!newNotebookName.value.trim()) return;
-  try { const res = await request.post('/api/notebooks', { name: newNotebookName.value }); newNotebookName.value = ''; showCreateModal.value = false; if(res && res.id) router.push(`/copilot/${res.id}`); }
-  catch (error) { alert("创建失败，请检查网络或登录状态"); }
-};
+const openMenu = () => { if (showChat.value) { showChat.value = false; } else { menuState.value = 1; } };
+
 
 // 动画控制
 const currentAction = ref(4);
@@ -239,16 +281,138 @@ const stopDragTouch = () => { document.removeEventListener('touchmove', doDragTo
 
 // 聊天对讲核心
 const showChat = ref(false), chatTargetId = ref(999), chatTargetName = ref(''), userMessage = ref(''), chatHistory = ref([]), chatBodyRef = ref(null);
-const openChat = (targetId) => {
-  chatTargetId.value = targetId; chatTargetName.value = targetId === 999 ? '全局' : currentNotebookName.value; menuState.value = 0; showChat.value = true; playAnimation();
-  if(chatHistory.value.length === 0){ chatHistory.value = [{ role: 'ai', text: targetId === 999 ? '喵~ 全局节点已连接。有什么我可以帮你的吗？' : '专属知识库已挂载，随时提问喵！' }]; }
+const openChat = async (targetId) => {
+  chatTargetId.value = targetId;
+  chatTargetName.value = targetId === 999 ? '全局' : currentNotebookName.value;
+  menuState.value = 0;
+  showChat.value = true;
+  playAnimation();
+
+  // 核心改动：打开面板时，强制重置 currentSessionId 并重新拉取下拉列表
+  currentSessionId.value = null;
+  await fetchSessions();
 };
 const scrollToBottom = async () => { await nextTick(); if (chatBodyRef.value) chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight; };
 const sendMessage = async () => {
-  if (!userMessage.value.trim()) return; const msg = userMessage.value; chatHistory.value.push({ role: 'user', text: msg }); userMessage.value = ''; await scrollToBottom(); playAnimation();
-  try { const res = await request.post('/api/chat', { notebookId: chatTargetId.value, query: msg }); chatHistory.value.push({ role: 'ai', text: res.answer || '喵呜...' }); }
-  catch (error) { chatHistory.value.push({ role: 'ai', text: '连接断开喵...' }); } await scrollToBottom();
+  if (!userMessage.value.trim()) return;
+  const msg = userMessage.value;
+  chatHistory.value.push({ role: 'user', text: msg });
+  userMessage.value = '';
+  await scrollToBottom();
+  playAnimation();
+
+  try {
+    // 核心改动：请求参数加上了 sessionId
+    const res = await request.post('/api/chat', {
+      notebookId: chatTargetId.value,
+      sessionId: currentSessionId.value, // 告诉后端具体是哪个会话
+      query: msg
+    });
+    chatHistory.value.push({ role: 'ai', text: res.answer || '喵呜...' });
+
+    // 发送完毕后静默刷新列表，以更新自动生成的标题
+    fetchSessions();
+  } catch (error) {
+    chatHistory.value.push({ role: 'ai', text: '连接断开喵...' });
+  }
+  await scrollToBottom();
 };
+
+// ==================== 【新增：会话 CRUD 逻辑】 ====================
+const fetchSessions = async () => {
+  try {
+    const res = await request.get(`/api/chat-sessions/notebook/${chatTargetId.value}`);
+    sessions.value = res;
+
+    if (sessions.value.length === 0) {
+      await createNewSession();
+    } else if (!currentSessionId.value) {
+      await switchSession(sessions.value[0].id);
+    }
+  } catch (error) {
+    console.error('获取历史会话失败');
+  }
+};
+
+const createNewSession = async () => {
+  if (chatHistory.value.length <= 1) {
+    isDropdownOpen.value = false;
+    return;
+  }
+  const existingEmptySession = sessions.value.find(s => s.title === '新的探讨');
+  if (existingEmptySession) {
+    await switchSession(existingEmptySession.id);
+    isDropdownOpen.value = false;
+    return;
+  }
+  try {
+    const newSession = await request.post(`/api/chat-sessions/notebook/${chatTargetId.value}`);
+    sessions.value.unshift(newSession);
+    await switchSession(newSession.id);
+    isDropdownOpen.value = false;
+  } catch (error) {
+    console.error('创建新对话失败');
+  }
+};
+
+const switchSession = async (sessionId) => {
+  currentSessionId.value = sessionId;
+  isDropdownOpen.value = false;
+  chatHistory.value = [];
+
+  try {
+    const messages = await request.get(`/api/chat-sessions/${sessionId}/messages`);
+    if (messages && messages.length > 0) {
+      chatHistory.value = messages.map(msg => ({
+        role: msg.role,
+        text: msg.content,
+        sources: msg.sources ? JSON.parse(msg.sources) : [],
+        isExpanded: false
+      }));
+    } else {
+      chatHistory.value = [{ role: 'ai', text: chatTargetId.value === 999 ? '喵~ 全局节点已连接。有什么我可以帮你的吗？' : '专属知识库已挂载，随时提问喵！', sources: [] }];
+    }
+    await scrollToBottom();
+  } catch (error) {
+    console.error('拉取对话记录失败');
+  }
+};
+
+const toggleMenu = (id) => { activeMenuId.value = activeMenuId.value === id ? null : id; };
+
+const handlePin = async (session) => {
+  activeMenuId.value = null;
+  const newStatus = session.isPinned ? 0 : 1;
+  try {
+    await request.put(`/api/chat-sessions/${session.id}/pin`, { isPinned: newStatus });
+    await fetchSessions();
+  } catch (error) {}
+};
+
+const handleRename = async (session) => {
+  activeMenuId.value = null;
+  const newName = prompt('为这段记忆赋予一个新名字：', session.title || '新的探讨');
+  if (!newName || newName.trim() === '' || newName === session.title) return;
+  try {
+    await request.put(`/api/chat-sessions/${session.id}/rename`, { title: newName.trim() });
+    await fetchSessions();
+  } catch (error) {}
+};
+
+const handleDeleteSession = async (session) => {
+  activeMenuId.value = null;
+  if (!confirm(`确定要彻底删除这段记忆 "${session.title || '新的探讨'}" 吗？`)) return;
+  try {
+    await request.delete(`/api/chat-sessions/${session.id}`);
+    if (currentSessionId.value === session.id) {
+      currentSessionId.value = null;
+      chatHistory.value = [];
+    }
+    await fetchSessions();
+  } catch (error) {}
+};
+// =================================================================
+
 // 处理气泡内部引用角标的点击代理
 const handleBubbleClick = (event, sources) => {
   const target = event.target;
@@ -306,7 +470,6 @@ onUnmounted(() => {
 .menu-header.with-back{color:#e8e8f0;}
 .btn-back{font-size:18px;margin-right:4px;cursor:pointer;transition:color 0.2s;}
 .btn-back:hover{color:#a99df9;}
-.menu-subtitle{font-size:11px;color:#6b6b85;padding:4px 8px;text-transform:uppercase;letter-spacing:1px;}
 .menu-divider{height:1px;background:rgba(255,255,255,0.05);margin:8px 0;}
 .menu-item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;color:#e8e8f0;font-size:14px;cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;}
 .menu-item .material-icons{font-size:18px;color:#9898b4;transition:color 0.3s;}
@@ -314,11 +477,7 @@ onUnmounted(() => {
 .menu-item:hover .material-icons{color:#a99df9;}
 .primary-item{color:#a99df9;font-weight:500;}
 .primary-item .material-icons{color:#7c6ff7;}
-.current-item{background:rgba(124,111,247,0.15);border:1px solid rgba(124,111,247,0.3);}
-.current-item:hover{background:rgba(124,111,247,0.25);}
-.action-item:hover{background:rgba(74,222,128,0.1);color:#4ade80;}
 .action-item:hover .material-icons{color:#4ade80;}
-.empty-text{font-size:12px;color:#6b6b85;text-align:center;padding:10px 0;}
 .emoji-icon{font-size:16px;margin-right:4px;}
 .menu-fade-enter-active,.menu-fade-leave-active{transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);}
 .menu-fade-enter-from,.menu-fade-leave-to{opacity:0;transform:scale(0.9) translateX(20px);}
@@ -330,18 +489,6 @@ onUnmounted(() => {
 .nebula-input-wrapper:focus-within .focus-line{transform:scaleX(1);}
 .btn-send{background:transparent;color:#7c6ff7;border:none;padding:0 16px;font-weight:600;cursor:pointer;transition:color 0.3s;}
 .btn-send:hover{color:#a99df9;}
-.nebula-modal-overlay{position:fixed;inset:0;background:rgba(6,6,15,0.6);backdrop-filter:blur(8px);display:flex;justify-content:center;align-items:center;z-index:10001;}
-.nebula-modal-content{width:100%;max-width:400px;padding:32px;}
-.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;}
-.modal-header h2{margin:0;font-size:1.2rem;color:#e8e8f0;}
-.modal-footer{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;}
-.btn-nebula-outline{background:transparent;border:1px solid rgba(255,255,255,0.15);color:#e8e8f0;border-radius:10px;padding:10px 20px;font-weight:600;cursor:pointer;transition:0.3s;}
-.btn-nebula-outline:hover{background:rgba(255,255,255,0.05);border-color:#a99df9;}
-.btn-nebula-primary{background:linear-gradient(135deg,#7c6ff7,#5b4fcf);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-weight:600;cursor:pointer;transition:all 0.3s;}
-.btn-nebula-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 4px 15px rgba(124,111,247,0.4);}
-.btn-nebula-primary:disabled{opacity:0.5;cursor:not-allowed;}
-.modal-fade-enter-active,.modal-fade-leave-active{transition:all 0.3s cubic-bezier(0.4,0,0.2,1);}
-.modal-fade-enter-from,.modal-fade-leave-to{opacity:0;transform:scale(0.95) translateY(20px);}
 #globalParticleCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;}
 .ambient-glow{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0;opacity:0.5;animation:ambientFloat 12s ease-in-out infinite;}
 .ambient-glow.glow-1{width:500px;height:500px;background:radial-gradient(circle,rgba(124,111,247,0.35) 0%,transparent 70%);top:-15%;left:-10%;animation-duration:14s;}
@@ -368,4 +515,38 @@ onUnmounted(() => {
 .chat-bubble :deep(.markdown-body){font-size:14px;line-height:1.6;color:#e8e8f0;}
 .chat-bubble :deep(.markdown-body strong){color:#a99df9;font-weight:600;}
 .chat-bubble :deep(.markdown-body h1),.chat-bubble :deep(.markdown-body h2){font-size:16px;margin:10px 0;color:#fff;}
+
+/* ================== 新增：小黑专属多会话 & 三点菜单 UI 规范 ================== */
+.chat-header-complex { padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; gap: 12px; }
+.header-top-row { display: flex; justify-content: space-between; align-items: center; }
+.header-top-row .title { color: #e8e8f0; font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.session-controls-row { position: relative; display: flex; align-items: center; gap: 8px; z-index: 100; }
+.btn-session-dropdown { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); color: #e8e8f0; border-radius: 12px; padding: 8px 12px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 6px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); flex: 1; }
+.btn-session-dropdown:hover { background: rgba(255, 255, 255, 0.08); border-color: #7c6ff7; }
+.session-title-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.btn-new-chat { background: transparent; border: 1px solid rgba(255, 255, 255, 0.08); color: #a99df9; border-radius: 10px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); flex-shrink: 0; }
+.btn-new-chat:hover { background: rgba(124, 111, 247, 0.15); border-color: #7c6ff7; color: #fff; transform: translateY(-2px); }
+.session-dropdown-menu { position: absolute; top: calc(100% + 8px); left: 0; width: 100%; padding: 12px 0; z-index: 101; max-height: 350px; overflow-y: auto; background: rgba(18, 18, 36, 0.95); border-radius: 16px; transform-origin: top left; }
+.dropdown-label { font-size: 0.75rem; color: #6b6b85; padding: 0 16px 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 8px; }
+.session-list { list-style: none; padding: 0; margin: 0; }
+.session-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 8px 10px 16px; cursor: pointer; color: #9898b4; font-size: 0.88rem; transition: background 0.2s; border-left: 3px solid transparent; position: relative; }
+.session-item:hover { background: rgba(255, 255, 255, 0.04); color: #e8e8f0; }
+.session-item.active { background: rgba(124, 111, 247, 0.1); color: #fff; border-left-color: #7c6ff7; }
+.session-item-content { display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden; }
+.icon-xs { font-size: 16px; transition: transform 0.3s; }
+.rotate-180 { transform: rotate(180deg); }
+.item-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dropdown-overlay { position: fixed; inset: 0; z-index: 99; cursor: default; }
+.dropdown-fade-enter-active, .dropdown-fade-leave-active { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.dropdown-fade-enter-from, .dropdown-fade-leave-to { opacity: 0; transform: scale(0.95) translateY(-10px); }
+.session-actions { position: relative; display: flex; align-items: center; }
+.btn-icon-sm { background: transparent; border: none; color: #6b6b85; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; opacity: 0; }
+.session-item:hover .btn-icon-sm { opacity: 1; }
+.btn-icon-sm:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.session-actions:focus-within .btn-icon-sm { opacity: 1; color: #a99df9; }
+.session-action-menu { position: absolute; top: calc(100% + 4px); right: 0; width: 140px; padding: 6px; z-index: 999; display: flex; flex-direction: column; gap: 2px; border-radius: 12px; transform-origin: top right; background: rgba(18, 18, 36, 0.98); box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+.session-action-menu button { background: transparent; border: none; width: 100%; text-align: left; padding: 8px 12px; color: #e8e8f0; font-size: 0.85rem; border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.session-action-menu button:hover { background: rgba(124, 111, 247, 0.15); color: #fff; transform: translateX(2px); }
+.session-action-menu button.danger-text { color: #f56c6c; }
+.session-action-menu button.danger-text:hover { background: rgba(245, 108, 108, 0.15); color: #ff8585; }
 </style>

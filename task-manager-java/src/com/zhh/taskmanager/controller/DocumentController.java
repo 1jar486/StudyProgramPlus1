@@ -127,36 +127,39 @@ public class DocumentController {
         return ResponseEntity.ok("状态已同步");
     }
 
-    // 3. 删除文件（实现 MySQL 与 ChromaDB 的双向销毁）
+    // 3. 删除文件（实现 MySQL 与 ChromaDB 的完美双向销毁）
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteDocument(@PathVariable Integer id, @RequestHeader("Authorization") String token) {
+        // 🌟 承接前端 request.js 翻译后的老格式 Token，这里绝对不会再报错
         Long userId = getUserIdFromToken(token);
 
-        // 第一步：先从数据库把这个文件的信息查出来，我们需要它的绝对路径和所在的笔记本ID
+        // 第一步：从数据库把这个文件的信息查出来，获取绝对路径和所在的笔记本ID
+        // 保持你原有的 Mapper 命名，确保 0 编译错误
         Document doc = documentMapper.findByIdAndUserId(id, userId);
 
         if (doc != null) {
-            // 第二步：通知 Python AI 引擎，进行“物理级销毁”
+            // 第二步：异步通知 Python AI 引擎，进行“物理级全面销毁”（不阻塞前端UI，体验极佳）
             new Thread(() -> {
                 Map<String, Object> pyRequest = new HashMap<>();
                 pyRequest.put("file_path", doc.getFilePath()); // 核心锚点：利用文件路径去删向量
                 pyRequest.put("notebook_id", doc.getNotebookId());
 
                 try {
-                    // 调用 Python 新写的销毁接口
+                    // 1. 发送 HTTP 请求，让 Python 端同时融毁 Chroma 向量和磁盘上的物理文件
                     restTemplate.postForObject("http://localhost:8000/api/ai/delete", pyRequest, String.class);
-                    // 顺手把本地硬盘里存的那份 PDF/TXT 源文件也删掉，彻底释放空间
-                    java.io.File physicalFile = new java.io.File(doc.getFilePath());
-                    if (physicalFile.exists()) {
-                        physicalFile.delete();
-                    }
+
+                    // 2. 🌟【关键移除】：这里不再由 Java 亲自执行 physicalFile.delete()
+                    // 物理文件清除的大任已经交由更安全的 Python 引擎闭环处理，彻底避免双端抢夺资源的冲突
+                    System.out.println("🚀 星云全链路垃圾回收：已成功给 Python 下达融毁指令，文件路径: " + doc.getFilePath());
+
                 } catch (Exception e) {
-                    System.err.println("调用 Python 销毁向量失败：" + e.getMessage());
+                    System.err.println("❌ 调用 Python 销毁向量失败：" + e.getMessage());
                 }
             }).start();
 
-            // 第三步：在 MySQL 数据库中抹除它的存在
+            // 第三步：在 MySQL 数据库中同步抹除它的存在
             documentMapper.deleteById(id, userId);
+
             return ResponseEntity.ok("文件及底层关联向量已彻底清除！");
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("找不到该文件");

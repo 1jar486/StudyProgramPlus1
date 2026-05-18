@@ -190,7 +190,7 @@ const handleAddTask = async () => {
   try {
     await request.post('/api/tasks', newTask.value);
     newTask.value.title = '';
-    fetchTasks();
+    await fetchTasks();
     showToast('录入成功', 'success');
   } catch (error) { showToast('添加失败', 'error'); }
 };
@@ -198,7 +198,7 @@ const handleAddTask = async () => {
 const toggleTask = async (id) => {
   try {
     await request.put(`/api/tasks/${id}`);
-    fetchTasks();
+    await fetchTasks();
   }
   catch (error) { showToast("状态更新失败", "error"); }
 };
@@ -209,7 +209,7 @@ const handleInlineEdit = async (task) => {
     await request.put(`/api/tasks/${task.id}/core`, { title: task.title, priority: task.priority, tag: task.tag });
     showToast('属性已更新', 'success');
   } catch (error) {
-    showToast('更新失败，正在回滚', 'error'); fetchTasks();
+    showToast('更新失败，正在回滚', 'error'); await fetchTasks();
   }
 };
 
@@ -219,11 +219,17 @@ const editTaskTitle = (task) => {
   task.editTitleTemp = task.title;
 };
 
+// 修复后：增加防空串拦截
 const saveTaskTitle = async (task) => {
   task.isEditingTitle = false;
-  if (task.editTitleTemp && task.editTitleTemp.trim() !== task.title) {
+  // 如果修改为空，自动恢复原标题，阻止发送请求
+  if (!task.editTitleTemp || !task.editTitleTemp.trim()) {
+    task.editTitleTemp = task.title;
+    return;
+  }
+  if (task.editTitleTemp.trim() !== task.title) {
     task.title = task.editTitleTemp.trim();
-    await handleInlineEdit(task); // 复用 core 接口同步标题
+    await handleInlineEdit(task);
   }
 };
 
@@ -232,7 +238,7 @@ const triggerDeleteTask = (id) => { deleteTaskConfirm.value = { show: true, id }
 const executeDeleteTask = async () => {
   try {
     await request.delete(`/api/tasks/${deleteTaskConfirm.value.id}`);
-    deleteTaskConfirm.value.show = false; fetchTasks();
+    deleteTaskConfirm.value.show = false; await fetchTasks();
     showToast('任务已成功抹除', 'success');
   } catch (error) { showToast('抹除失败', 'error'); }
 };
@@ -244,7 +250,7 @@ const saveDetailModal = async () => {
   if (!currentTask.value) return;
   try {
     await request.put(`/api/tasks/${currentTask.value.id}/memo`, { memo: currentTask.value.memo });
-    showToast('备忘录已同步', 'success'); closeDetailModal(); fetchTasks();
+    showToast('备忘录已同步', 'success'); closeDetailModal(); await fetchTasks();
   } catch (error) { showToast('同步失败', 'error'); }
 };
 
@@ -341,7 +347,6 @@ onMounted(() => { fetchTasks(); });
 .value{font-size:1rem;font-weight:600;}
 .text-glow{color:#a99df9;text-shadow:0 0 8px rgba(169,157,249,0.4);}
 .text-success{color:#4ade80;}
-.text-danger{color:#f56c6c;}
 .memo-area{display:flex;flex-direction:column;gap:12px;}
 .nebula-textarea{width:100%;height:120px;background:transparent;border:none;color:#e8e8f0;font-size:0.95rem;resize:none;outline:none;line-height:1.6;padding:12px;}
 .modal-footer{display:flex;justify-content:flex-end;gap:12px;margin-top:32px;}
@@ -354,6 +359,6 @@ onMounted(() => { fetchTasks(); });
 .text-sub{color:#9898b4;font-size:0.9rem;margin-bottom:24px;}
 .list-enter-active,.list-leave-active{transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);}
 .list-enter-from,.list-leave-to{opacity:0;transform:translateX(-30px);}
-
+.text-accent { color: #f59e0b; } /* 补充遗漏的激活状态颜色（琥珀色） */
 
 </style>

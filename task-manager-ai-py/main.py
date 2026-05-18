@@ -37,16 +37,16 @@ class DeleteRequest(BaseModel):
     file_path: str
     notebook_id: int
 
-# 在 @app.post("/api/ai/chat") 下面新增这个接口
 @app.post("/api/ai/delete")
 async def delete_file_vectors(request: DeleteRequest):
-    """接口3：接收 Java 的指令，物理删除向量数据"""
+    """接口3：接收 Java 的指令，全链路物理销毁数据"""
     try:
+        # 调用我们刚刚强化过的双重物理抹除机制
         success = rag_engine.delete_document_vectors(request.file_path, request.notebook_id)
         if success:
-            return {"status": "success", "message": "向量已彻底销毁"}
+            return {"status": "success", "message": "全链路数据（向量+磁盘物理文件）已彻底深度销毁"}
         else:
-            raise HTTPException(status_code=500, detail="销毁失败")
+            raise HTTPException(status_code=500, detail="由于文件状态异常，数据未完全销毁")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -10,13 +10,13 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/chat")
-@CrossOrigin // 允许跨域
+@CrossOrigin // 🌟 必须保留，确保前端 Vue 能跨域访问
 public class ChatController {
 
     @Autowired
     private ChatService chatService;
 
-    // ================= 【核心修复：引入 Token 解析方法】 =================
+    // ================= 【解析 Token 的辅助方法】 =================
     private Long getUserIdFromToken(String token) {
         try {
             return Long.parseLong(token.replace("SUCCESS_TOKEN_FOR_", ""));
@@ -24,34 +24,35 @@ public class ChatController {
             throw new RuntimeException("身份验证失败，请重新登录");
         }
     }
-    // =================================================================
+    // ==========================================================
 
     /**
-     * [cite_start]拉取历史记录 - 增加 Token 校验拦截[span_0](end_span)
+     * 拉取旧版历史记录 (GET 请求)
      */
     @GetMapping("/{notebookId}")
     public List<ChatMessage> getHistory(
             @PathVariable Integer notebookId,
-            @RequestHeader("Authorization") String token) { // 👈 强制要求请求头包含 Token
-
-        getUserIdFromToken(token); // 验证用户是否登录
-
+            @RequestHeader("Authorization") String token) {
+        getUserIdFromToken(token); // 验证登录
         return chatService.getHistory(notebookId);
     }
 
     /**
-     * [span_1](start_span)[span_2](start_span)发起 AI 对话 - 增加 Token 校验拦截 [cite: 43-44]
+     * 🌟 发起 AI 对话 (POST 请求) - 已接入多线程 Session 机制
      */
     @PostMapping
     public Map<String, Object> chat(
             @RequestBody Map<String, Object> payload,
-            @RequestHeader("Authorization") String token) { // 👈 强制要求请求头包含 Token
+            @RequestHeader("Authorization") String token) {
 
-        getUserIdFromToken(token); // 验证用户是否登录
+        getUserIdFromToken(token); // 验证登录
 
         Integer notebookId = (Integer) payload.get("notebookId");
+        // 🌟 核心：接收前端传来的 sessionId (如果是第一次对话，前端会先去创建 Session 然后把 ID 传过来)
+        Integer sessionId = (Integer) payload.get("sessionId");
         String query = (String) payload.get("query");
 
-        return chatService.processChat(notebookId, query);
+        // 调用 Service 层的 processChat
+        return chatService.processChat(notebookId, sessionId, query);
     }
 }

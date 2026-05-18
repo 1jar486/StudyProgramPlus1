@@ -24,19 +24,55 @@ public class FlashcardServiceImpl implements FlashcardService {
     }
 
     @Override
-    public List<Flashcard> getDueCards(Integer deckId, int newLimit, int reviewLimit, Long userId) {
-        // 1. 查询今天已经消耗的额度
+    public List<Flashcard> getDueCards(Integer deckId, int newLimit, int reviewLimit, Long userId, String mode) {
+        // 1. 查询今天已经消耗的配额
         int newLearnedToday = reviewLogMapper.countNewLearnedToday(userId);
         int oldReviewedToday = reviewLogMapper.countOldReviewedToday(userId);
 
-        // 2. 动态计算真实剩余额度 (防止出现负数)
-        int effectiveNewLimit = Math.max(0, newLimit - newLearnedToday);
-        int effectiveReviewLimit = Math.max(0, reviewLimit - oldReviewedToday);
+        int effectiveNewLimit = 0;
+        int effectiveReviewLimit = 0;
 
-        // 3. 根据真实剩余额度去数据库捞卡片
-        List<Flashcard> reviewCards = flashcardMapper.findReviewCards(deckId, effectiveReviewLimit);
+        // 2. 🌟 核心策略分发：根据不同模式动态计算额度
+        if ("rapid".equals(mode)) {
+            // 【快速突破模式】：考前突击专用！无视今天已经学过的防沉迷配额，强制按设定的上限输出，并把新卡获取量翻倍！
+            effectiveNewLimit = newLimit * 2;
+            effectiveReviewLimit = reviewLimit * 2;
+        } else {
+            // 【标准模式】与【重难点模式】：严格遵守 SM-2 算法的每日配额，扣除今天已学数量，防止过度复习
+            effectiveNewLimit = Math.max(0, newLimit - newLearnedToday);
+            effectiveReviewLimit = Math.max(0, reviewLimit - oldReviewedToday);
+        }
+
+        // 3. 去数据库捞卡片 (重难点模式下，我们故意扩大复习卡的捞取范围，以便后续在内存中进行"困难度提取")
+        int fetchReviewLimit = "difficult".equals(mode) ? effectiveReviewLimit * 3 : effectiveReviewLimit;
+        List<Flashcard> reviewCards = flashcardMapper.findReviewCards(deckId, fetchReviewLimit);
         List<Flashcard> newCards = flashcardMapper.findNewCards(deckId, effectiveNewLimit);
 
+        // 4. 🌟 核心算法：【重难点轰炸模式】的内存级重排
+        if ("difficult".equals(mode) && !reviewCards.isEmpty()) {
+            // a. 针对捞出来的大批复习卡，按“痛苦程度”进行排序
+            reviewCards.sort((a, b) -> {
+                // 第一梯队：把正在 LEARNING（生疏/遗忘）状态的卡片强制置顶
+                boolean aIsLearning = "LEARNING".equals(a.getStatus());
+                boolean bIsLearning = "LEARNING".equals(b.getStatus());
+                if (aIsLearning && !bIsLearning) return -1;
+                if (!aIsLearning && bIsLearning) return 1;
+
+                // 第二梯队：按 easeFactor (掌握难易度) 升序排，分数越低说明越难，越要排在前面挨揍
+                Double easeA = a.getEaseFactor() != null ? a.getEaseFactor() : 2.5;
+                Double easeB = b.getEaseFactor() != null ? b.getEaseFactor() : 2.5;
+                return Double.compare(easeA, easeB);
+            });
+
+            // b. 截断到原本的复习限制数量
+            if (reviewCards.size() > effectiveReviewLimit) {
+                reviewCards = reviewCards.subList(0, effectiveReviewLimit);
+            }
+            // c. 重难点模式下，屏蔽新卡，集中精力攻克难关
+            newCards.clear();
+        }
+
+        // 5. 合并并返回最终结果
         List<Flashcard> combined = new java.util.ArrayList<>(reviewCards);
         combined.addAll(newCards);
         return combined;
